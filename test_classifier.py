@@ -62,7 +62,7 @@ def getPredictions(train_data, train_labels, test_data, test_labels):
 	# shuffled_train_labels = train_labels[shuffled_indices]
 
 	print('training... data shape: %s ' % str(train_data.shape))
-	early_stop = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
+	early_stop = EarlyStopping(monitor='val_loss', patience=10, verbose=1)
 	# cls.fit(train_data, dense_to_one_hot(train_labels), shuffle=True, nb_epoch=200, batch_size = 256, validation_split=0.05, callbacks=[early_stop])
 
 	n_test = len(test_data)

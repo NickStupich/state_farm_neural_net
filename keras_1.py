@@ -59,9 +59,9 @@ def create_model_conv1(img_rows, img_cols):
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
 
-    # sgd = SGD(lr=4E-3)
-    # model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"], )
+    sgd = SGD(lr=4E-3, momentum=0.5, decay = 0.01)
+    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"], )
 
-    model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
+    # model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
 
     return model
