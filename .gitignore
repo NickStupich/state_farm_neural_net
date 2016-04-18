@@ -1,3 +1,11 @@
+driver_imgs_list.csv
+sample_submission.csv
+train/*
+test/*
+downsampled*
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
