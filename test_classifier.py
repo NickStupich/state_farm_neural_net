@@ -12,6 +12,11 @@ from keras.callbacks import EarlyStopping
 
 import keras_1
 
+img_cols = 64
+img_rows = 48
+
+isColor = 1
+
 def load_driver_ids():
 	fn = 'driver_imgs_list.csv'
 	pd = pandas.read_csv(fn)
@@ -38,7 +43,7 @@ def dense_to_one_hot(labels_dense, num_classes=10):
   # exit(0)
   return labels_one_hot
 
-def getPredictions(train_data, train_labels, test_data, test_labels):
+def getPredictions(train_data, train_labels, test_data, test_labels, isColor):
 
 	train_mean = np.mean(train_data)
 	train_std = np.std(train_data)
@@ -53,7 +58,7 @@ def getPredictions(train_data, train_labels, test_data, test_labels):
 	# cls = LogisticRegression(C = 1E-4)
 	# cls = keras_1.create_model_v1(64, 48)
 	#cls = keras_1.create_model_logReg(64, 48)
-	cls = keras_1.create_model_conv1(64, 48)
+	cls = keras_1.create_model_conv1(img_cols, img_rows, isColor = isColor)
 	# cls = LinearDiscriminantAnalysis()
 	# cls = RandomForestClassifier()
 
@@ -62,7 +67,7 @@ def getPredictions(train_data, train_labels, test_data, test_labels):
 	# shuffled_train_labels = train_labels[shuffled_indices]
 
 	print('training... data shape: %s ' % str(train_data.shape))
-	early_stop = EarlyStopping(monitor='val_loss', patience=10, verbose=1)
+	early_stop = EarlyStopping(monitor='val_loss', patience=20, verbose=1)
 	# cls.fit(train_data, dense_to_one_hot(train_labels), shuffle=True, nb_epoch=200, batch_size = 256, validation_split=0.05, callbacks=[early_stop])
 
 	n_test = len(test_data)
@@ -75,17 +80,20 @@ def getPredictions(train_data, train_labels, test_data, test_labels):
 	test_test_data = test_data[test_test_indices,:]
 	test_validation_output = test_labels[test_validation_indices]
 	print(test_validation_data.shape)
-	cls.fit(train_data, dense_to_one_hot(train_labels), shuffle=True, nb_epoch=200, batch_size = 256, validation_data=(test_validation_data, dense_to_one_hot(test_validation_output)), callbacks=[early_stop])
-	# cls.fit(train_data, train_labels)
+	cls.fit(train_data, 
+			dense_to_one_hot(train_labels), 
+			shuffle=True, 
+			nb_epoch=200, 
+			batch_size = 256, 
+			validation_data=(test_validation_data, dense_to_one_hot(test_validation_output)), 
+			callbacks=[early_stop])
+
 	print('done training')
 
-	#print('classes: ', cls.classes_
 	test_predictions = np.array(cls.predict_proba(test_test_data))
 
 	train_predictions = cls.predict_proba(train_data)
 	print('training log loss: %s' % log_loss(dense_to_one_hot(train_labels), train_predictions))
-
-	#predictions = np.ones((test_data.shape[0], train_outputs.shape[1]))
 
 	all_predictions = np.array(cls.predict_proba(test_data))
 
@@ -94,11 +102,7 @@ def getPredictions(train_data, train_labels, test_data, test_labels):
 def main():
 	img_nums, subjects = load_driver_ids()
 
-	# n = 10
-	# img_nums = img_nums[::n]
-	# subjects = subjects[::n]
-
-	data = np.load('downsampled_(64, 48).npy')
+	data = np.load('downsampled_(%d, %d)_%d.npy' % (img_cols, img_rows, isColor))
 	
 	data_class = data[:,0]
 	data_file_num = data[:,1]
@@ -133,10 +137,7 @@ def main():
 		test_data = data_pixels[data_test_indices]
 		train_data = data_pixels[data_train_indices]
 
-		predictions = getPredictions(train_data, train_classes, test_data, test_classes)
-
-		#print predictions[:1000:100]
-		#print test_output[:1000:100]
+		predictions = getPredictions(train_data, train_classes, test_data, test_classes, isColor = isColor)
 
 		all_predictions.append(predictions)
 		all_outputs.append(test_output)
@@ -149,10 +150,6 @@ def main():
 	all_predictions = np.concatenate(all_predictions)
 
 	print('overall score: %s' % log_loss(all_outputs, all_predictions))
-
-
-	# print subjects
-
 
 if __name__ == "__main__":
 	main()
