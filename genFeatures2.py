@@ -10,6 +10,7 @@ from sklearn.preprocessing import StandardScaler
 import keras_1
 from keras.callbacks import EarlyStopping
 
+from sklearn.metrics import log_loss
 
 result_img_size = (64, 48)
 color = 0
@@ -19,7 +20,6 @@ def load_data_for_img(filename, prefix='train/'):
 	pixels = np.ndarray.flatten(img_small)
 
 	return [pixels]
-
 
 def dense_to_one_hot(labels_dense, num_classes=10):
   """Convert class labels from scalars to one-hot vectors."""
@@ -105,10 +105,6 @@ for fold in range(int(len(uniqueSubjects)/(num_test_subjects + num_valid_subject
 	print('test on %s' % test_subjects)
 	print('validate on %s' % valid_subjects)
 
-	# train_data = list(itertools.chain(*map(lambda subject: subjects_data_dict[subject], train_subjects)))
-	# train_inputs = np.concatenate(list(map(lambda x: x[2], train_data)))
-	# train_labels = np.concatenate(list(map(lambda x: [x[0] for _ in range(len(x[2]))], train_data)))
-
 	train_inputs = np.concatenate([subjects_data[0][x] for x in train_indices])
 	train_labels = np.concatenate([subjects_data[1][x] for x in train_indices])
 
@@ -117,16 +113,6 @@ for fold in range(int(len(uniqueSubjects)/(num_test_subjects + num_valid_subject
 
 	test_inputs = np.concatenate([subjects_data[0][x] for x in test_indices])
 	test_labels = np.concatenate([subjects_data[1][x] for x in test_indices])
-	#valid_inputs = np.concatenate(list(map(lambda x: x[2], valid_data)))
-	#valid_labels = np.concatenate(list(map(lambda x: [x[0] for _ in range(len(x[2]))], valid_data)))
-
-	#valid_inputs2 = np.ndarray.flatten(list(map(lambda subject: map(lambda x: x[2], subjects_data_dict[subject]), valid_subjects)))
-
-	print(train_inputs.shape)
-	print(valid_inputs.shape)
-	print(test_inputs.shape)
-
-	# exit(0)
 	
 	scaler = StandardScaler(copy=False)
 	train_inputs = scaler.fit_transform(train_inputs)
