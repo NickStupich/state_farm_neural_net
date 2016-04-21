@@ -45,12 +45,11 @@ def create_model_conv1(img_rows, img_cols, isColor = 0):
                             border_mode='valid'))
     #model.add(Dropout(0.5))
 
-    # model.add(Activation('relu'))
-    # model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-
     model.add(Activation('relu'))
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-    #model.add(Dropout(0.5))
+
+    # model.add(Activation('relu'))
+    # model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
@@ -69,9 +68,9 @@ def create_model_conv1(img_rows, img_cols, isColor = 0):
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
 
-    sgd = SGD(lr=4E-3, momentum=0.5, decay = 0.01)
+    sgd = SGD(lr=2E-2, momentum=0.5, decay = 0.01)
     model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"], )
 
-    # model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
+    #model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
 
     return model

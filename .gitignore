@@ -1,3 +1,4 @@
+*.pickle
 driver_imgs_list.csv
 sample_submission.csv
 train/*

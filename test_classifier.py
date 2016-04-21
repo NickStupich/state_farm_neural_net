@@ -3,7 +3,7 @@ import pandas
 import random
 import pylab
 
-
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import log_loss
 from sklearn.linear_model import LogisticRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -44,16 +44,22 @@ def dense_to_one_hot(labels_dense, num_classes=10):
   return labels_one_hot
 
 def getPredictions(train_data, train_labels, test_data, test_labels, isColor):
+	
+	if 0:
+		train_mean = np.mean(train_data)
+		train_std = np.std(train_data)
 
-	train_mean = np.mean(train_data)
-	train_std = np.std(train_data)
-	# train_std = 10
+		train_data = (train_data - train_mean) / train_std
+		test_data = (test_data - train_mean) / train_std
+	else:
+		scaler = StandardScaler()
+		scaler.fit(train_data)
+		
+		train_data = scaler.transform(train_data)
+		test_data = scaler.transform(test_data)
 
-	print('mean: %s, std: %s ' % (train_mean, train_std))
 
-	train_data = (train_data - train_mean) / train_std
-	test_data = (test_data - train_mean) / train_std
-	# print train_data
+
 
 	# cls = LogisticRegression(C = 1E-4)
 	# cls = keras_1.create_model_v1(64, 48)

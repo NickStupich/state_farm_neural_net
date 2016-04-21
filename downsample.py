@@ -7,7 +7,7 @@ import os
 
 classes = 10
 resultSize = (64, 48)
-isColor = 1
+isColor = 0
 pixels_length = resultSize[0] * resultSize[1]
 data_length = pixels_length * (3 if isColor else 1) + 2
 
@@ -34,8 +34,12 @@ for c in range(classes):
 			cv2.waitKey(0)
 
 		img_small = cv2.resize(img, resultSize, interpolation = cv2.INTER_AREA)
-
-		pixels = np.concatenate(np.concatenate(img_small, axis=1))
+	
+		#print(img_small.shape)
+		#print(np.concatenate(img_small).shape)
+		#print(np.concatenate(np.concatenate(img_small)).shape)
+		#pixels = np.concatenate(np.concatenate(img_small, axis=1))
+		pixels = np.ndarray.flatten(img_small)
 
 		if debug:
 			print(pixels.shape)
