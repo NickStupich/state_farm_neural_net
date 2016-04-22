@@ -57,7 +57,7 @@ def create_model_conv1(img_rows, img_cols, isColor = 0):
 
     model.add(Flatten())
 
-    model.add(Dense(64))
+    model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
@@ -68,9 +68,9 @@ def create_model_conv1(img_rows, img_cols, isColor = 0):
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
 
-    sgd = SGD(lr=2E-2, momentum=0.5, decay = 0.01)
-    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"], )
+    #sgd = SGD(lr=2E-2, momentum=0.5, decay = 0.01)
+    #model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"], )
 
-    #model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
+    model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
 
     return model
