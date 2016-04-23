@@ -3,6 +3,7 @@ import pandas
 import cv2
 import itertools
 import pickle
+import os
 import os.path
 
 from sklearn.preprocessing import StandardScaler
@@ -23,7 +24,7 @@ def load_data_for_img(filename, prefix='train/'):
 	for y_start in [0, 40, 80]:
 		for x_start in [0, 80, 160, 240]:
 			crop_regions.append(((x_start, x_start + x_crop_size),(y_start, y_start + y_crop_size)))
-	result = [np.ndarray.flatten(cv2.resize(img[region[0][0]:region[0][1], region[1][0]:region[1][1]], result_img_size, interpolation=cv2.INTER_AREA)) for region in crop_regions]
+	result = np.array([np.ndarray.flatten(cv2.resize(img[region[0][0]:region[0][1], region[1][0]:region[1][1]], result_img_size, interpolation=cv2.INTER_AREA)) for region in crop_regions])
 	
 	return result
 
@@ -81,14 +82,32 @@ def load_all_subject_data():
 
 			print(len(subject_data))
 
-			result_data.append(np.array(subject_data))
+			result_data.append(subject_data)
 			result_labels.append(np.array(subject_labels))
 			result_filenames.append(subject_filenames)
 
-		# result_data = np.array(result_data)
-		# result_labels = np.array(result_labels)
-
 		result = (result_data, result_labels, result_filenames, uniqueSubjects)
+		pickle.dump(result, open(cache_fn, 'wb'))
+
+	return result
+
+def load_testing_data():	
+	cache_fn = 'test_data.pickle'
+
+	if os.path.isfile(cache_fn):
+		print('Loading test data from pickled file')
+		result = pickle.load(open(cache_fn, 'rb'))
+	else:
+		result_data = []
+		filenames = os.listdir('test')
+		for i, fn in enumerate(filenames):
+			data = load_data_for_img(fn, 'test/')
+			result_data.append(data)
+
+			if i % 1000 == 0:
+				print('\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b%d/%d' % (i, len(filenames)))
+
+		result = (result_data, filenames)
 		pickle.dump(result, open(cache_fn, 'wb'))
 
 	return result
@@ -109,39 +128,24 @@ def getInputsAndLabelsForSubjects(all_data, subject_indices):
 def merge_labels_by_filename(filenames, labels):
 	files_labels = zip(filenames, labels)
 	result = []
+	filenames = []
 	for filename, names_labels in itertools.groupby(files_labels, key=lambda x: x[0]):
 		labels = list(map(lambda x: x[1], names_labels))
 		result.append(np.mean(list(labels), axis=0))
-	return np.array(result)
+		filenames.append(filename)
+	return np.array(result), filenames
 
-
-all_subject_scores = {}
-num_test_subjects = 6
-num_valid_subjects = 0
-
-all_predictions = []
-all_labels = []
-for fold in range(int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))):
-	test_indices = list(map(lambda x: x % len(uniqueSubjects), range(fold*(num_test_subjects),(fold+1)*(num_test_subjects))))
-	valid_indices = list(map(lambda x: x % len(uniqueSubjects), range((fold+1)*num_test_subjects, (fold+1)*num_test_subjects+num_valid_subjects)))
-	train_indices = [x for x in range(len(uniqueSubjects)) if not (x in test_indices or x in valid_indices)]
-	
-	test_subjects = [uniqueSubjects[x] for x in test_indices]	
+def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, valid_indices):
 	train_subjects = [uniqueSubjects[x] for x in train_indices]
-
 	print('train on %s' % train_subjects)
-	print('test on %s' % test_subjects)
-	
 	train_inputs, train_labels, train_filenames = getInputsAndLabelsForSubjects(subjects_data, train_indices)
-	test_inputs, test_labels, test_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)
-	
+
 	scaler = StandardScaler(copy=False)
 	train_inputs = scaler.fit_transform(train_inputs)
-	test_inputs = scaler.transform(test_inputs)
 
 	cls = keras_1.create_model_conv1(result_img_size[0], result_img_size[1], color)
 	callbacks = []
-	if num_valid_subjects > 0:
+	if len(valid_indices) > 0:
 
 		valid_subjects = [uniqueSubjects[x] for x in valid_indices]
 		print('validate on %s' % valid_subjects)
@@ -151,42 +155,87 @@ for fold in range(int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid
 		early_stop = EarlyStopping(monitor='val_loss', patience=50, verbose=1)
 		callbacks.append(early_stop)
 
+
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
-			nb_epoch=10, 
+			nb_epoch=20, 
 			batch_size = 256, 
-			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if num_valid_subjects > 0 else None, 
+			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
 
-	test_predictions = cls.predict_proba(test_inputs)
+	return scaler, cls
 
-	score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
-	print('naive test log loss score: %s' % score)
+def write_submission_file(predictions, filenames):
+	print('writing submission file')
+	f = open('submission.csv', 'w')
+	f.write('img,c0,c1,c2,c3,c4,c5,c6,c7,c8,c9\n')
 
-	for test_index in test_indices:
-		test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
-		test_single_inputs = scaler.transform(test_single_inputs)
+	for fn, probs in zip(filenames, predictions):
+		f.write('%s,' % fn + ','.join(map(str, probs)) + '\n')
+
+	f.close()
+	print('done submission file')
+
+if True:
+	all_subject_scores = {}
+	num_test_subjects = 6
+	num_valid_subjects = 0
+
+	all_predictions = []
+	all_labels = []
+	for fold in range(int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))):
+		test_indices = list(map(lambda x: x % len(uniqueSubjects), range(fold*(num_test_subjects),(fold+1)*(num_test_subjects))))
+		valid_indices = list(map(lambda x: x % len(uniqueSubjects), range((fold+1)*num_test_subjects, (fold+1)*num_test_subjects+num_valid_subjects)))
+		train_indices = [x for x in range(len(uniqueSubjects)) if not (x in test_indices or x in valid_indices)]
 		
-		test_single_predictions = cls.predict_proba(test_single_inputs)
-		test_single_score = log_loss(dense_to_one_hot(test_single_labels), test_single_predictions)
-		print('Testing on single subject %s: %s' % (uniqueSubjects[test_index], test_single_score))
+		test_subjects = [uniqueSubjects[x] for x in test_indices]	
+		print('test on %s' % test_subjects)	
+		test_inputs, test_labels, test_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)	
+		
+		scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, valid_indices)
+		scaled_test_inputs = scaler.transform(test_inputs)
+		test_predictions = cls.predict_proba(scaled_test_inputs)
 
-		merged_predictions = merge_labels_by_filename(test_single_filenames, test_single_predictions)
-		merged_labels_one_hot = merge_labels_by_filename(test_single_filenames, dense_to_one_hot(test_single_labels))
-		merged_subject_score = log_loss(merged_labels_one_hot, merged_predictions)
-		print('merged subject score: %s' % merged_subject_score)
+		score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
+		print('naive test log loss score: %s' % score)
 
-		all_subject_scores[uniqueSubjects[test_index]] = merged_subject_score
+		for test_index in test_indices:
+			test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
+			test_single_inputs = scaler.transform(test_single_inputs)
+			
+			test_single_predictions = cls.predict_proba(test_single_inputs)
+			test_single_score = log_loss(dense_to_one_hot(test_single_labels), test_single_predictions)
+			print('Testing on single subject %s: %s' % (uniqueSubjects[test_index], test_single_score))
 
-		all_predictions.append(merged_predictions)
-		all_labels.append(merged_labels_one_hot)
+			merged_predictions, merged_filenames = merge_labels_by_filename(test_single_filenames, test_single_predictions)
+			merged_labels_one_hot, merged_label_filenames = merge_labels_by_filename(test_single_filenames, dense_to_one_hot(test_single_labels))
+			merged_subject_score = log_loss(merged_labels_one_hot, merged_predictions)
+			print('merged subject score: %s' % merged_subject_score)
 
-for subject in all_subject_scores:
-	print('%s : %s' % (subject, all_subject_scores[subject]))
+			all_subject_scores[uniqueSubjects[test_index]] = merged_subject_score
 
-all_labels = np.concatenate(all_labels)
-all_predictions = np.concatenate(all_predictions)
+			all_predictions.append(merged_predictions)
+			all_labels.append(merged_labels_one_hot)
 
-overall_score = log_loss(all_labels, all_predictions)
-print('overall log loss score: %s' % overall_score)
+	for subject in all_subject_scores:
+		print('%s : %s' % (subject, all_subject_scores[subject]))
+
+	all_labels = np.concatenate(all_labels)
+	all_predictions = np.concatenate(all_predictions)
+
+	overall_score = log_loss(all_labels, all_predictions)
+	print('overall log loss score: %s' % overall_score)
+
+
+### Make predictions on kaggle test data ###
+if True:
+	train_indices = range(len(uniqueSubjects))
+	scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, [])
+
+	test_data, test_filenames = load_testing_data()
+	scaled_test_data = scaler.transform(np.concatenate(test_data).astype('float32'))
+	test_predictions = cls.predict_proba(scaled_test_data)
+	merged_test_predictions, merged_test_filenames = merge_labels_by_filename(test_filenames, test_predictions)
+
+	write_submission_file(merged_test_predictions, merged_test_filenames)
