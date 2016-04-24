@@ -39,18 +39,15 @@ def create_model_conv1(img_rows, img_cols, isColor = 0):
     colorDim = 3 if isColor else 1
 
     model.add(Reshape(input_shape=(img_rows*img_cols*colorDim,), target_shape = (colorDim, img_rows, img_cols)))
-    #model.add(GaussianNoise(0.1, input_shape=(1, img_rows, img_cols)))
 
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-                            border_mode='valid'))
-    #model.add(Dropout(0.5))
-
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid'))
     model.add(Activation('relu'))
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-
-    # model.add(Activation('relu'))
-    # model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     
+    # model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    # model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))

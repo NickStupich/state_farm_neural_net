@@ -177,7 +177,7 @@ def main():
 	uniqueSubjects = subjects_data[3]
 	print(uniqueSubjects)
 
-	if False:
+	if True:
 		all_subject_scores = {}
 		num_test_subjects = 6
 		num_valid_subjects = 0
