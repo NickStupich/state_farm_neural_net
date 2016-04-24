@@ -24,7 +24,7 @@ def load_data_for_img(filename, prefix='train/'):
 	for y_start in [0, 40, 80]:
 		for x_start in [0, 80, 160, 240]:
 			crop_regions.append(((x_start, x_start + x_crop_size),(y_start, y_start + y_crop_size)))
-	result = np.array([np.ndarray.flatten(cv2.resize(img[region[0][0]:region[0][1], region[1][0]:region[1][1]], result_img_size, interpolation=cv2.INTER_AREA)) for region in crop_regions])
+	result = [np.ndarray.flatten(cv2.resize(img[region[0][0]:region[0][1], region[1][0]:region[1][1]], result_img_size, interpolation=cv2.INTER_AREA)) for region in crop_regions]
 	
 	return result
 
@@ -82,7 +82,7 @@ def load_all_subject_data():
 
 			print(len(subject_data))
 
-			result_data.append(subject_data)
+			result_data.append(np.array(subject_data))
 			result_labels.append(np.array(subject_labels))
 			result_filenames.append(subject_filenames)
 
@@ -99,25 +99,20 @@ def load_testing_data():
 		result = pickle.load(open(cache_fn, 'rb'))
 	else:
 		result_data = []
-		filenames = os.listdir('test')
-		for i, fn in enumerate(filenames):
+		filenames = []
+		all_filenames = os.listdir('test')
+		for i, fn in enumerate(all_filenames):
 			data = load_data_for_img(fn, 'test/')
+			filenames.append([fn] * len(data))
 			result_data.append(data)
 
 			if i % 1000 == 0:
-				print('\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b%d/%d' % (i, len(filenames)))
+				print('\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b%d/%d' % (i, len(all_filenames)))
 
 		result = (result_data, filenames)
 		pickle.dump(result, open(cache_fn, 'wb'))
 
 	return result
-
-subjects_data = load_all_subject_data()
-# pickle.dump(subjects_data_dict, open(pickle_fn, 'wb'))
-uniqueSubjects = subjects_data[3]
-print(uniqueSubjects)
-print(len(subjects_data[0]))
-print(subjects_data[0][0].shape)
 
 def getInputsAndLabelsForSubjects(all_data, subject_indices):
 	inputs = np.concatenate([all_data[0][x] for x in subject_indices]).astype('float32')
@@ -177,65 +172,79 @@ def write_submission_file(predictions, filenames):
 	f.close()
 	print('done submission file')
 
-if True:
-	all_subject_scores = {}
-	num_test_subjects = 6
-	num_valid_subjects = 0
+def main():	
+	subjects_data = load_all_subject_data()
+	uniqueSubjects = subjects_data[3]
+	print(uniqueSubjects)
 
-	all_predictions = []
-	all_labels = []
-	for fold in range(int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))):
-		test_indices = list(map(lambda x: x % len(uniqueSubjects), range(fold*(num_test_subjects),(fold+1)*(num_test_subjects))))
-		valid_indices = list(map(lambda x: x % len(uniqueSubjects), range((fold+1)*num_test_subjects, (fold+1)*num_test_subjects+num_valid_subjects)))
-		train_indices = [x for x in range(len(uniqueSubjects)) if not (x in test_indices or x in valid_indices)]
-		
-		test_subjects = [uniqueSubjects[x] for x in test_indices]	
-		print('test on %s' % test_subjects)	
-		test_inputs, test_labels, test_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)	
-		
-		scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, valid_indices)
-		scaled_test_inputs = scaler.transform(test_inputs)
-		test_predictions = cls.predict_proba(scaled_test_inputs)
+	if False:
+		all_subject_scores = {}
+		num_test_subjects = 6
+		num_valid_subjects = 0
 
-		score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
-		print('naive test log loss score: %s' % score)
-
-		for test_index in test_indices:
-			test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
-			test_single_inputs = scaler.transform(test_single_inputs)
+		all_predictions = []
+		all_labels = []
+		for fold in range(int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))):
+			test_indices = list(map(lambda x: x % len(uniqueSubjects), range(fold*(num_test_subjects),(fold+1)*(num_test_subjects))))
+			valid_indices = list(map(lambda x: x % len(uniqueSubjects), range((fold+1)*num_test_subjects, (fold+1)*num_test_subjects+num_valid_subjects)))
+			train_indices = [x for x in range(len(uniqueSubjects)) if not (x in test_indices or x in valid_indices)]
 			
-			test_single_predictions = cls.predict_proba(test_single_inputs)
-			test_single_score = log_loss(dense_to_one_hot(test_single_labels), test_single_predictions)
-			print('Testing on single subject %s: %s' % (uniqueSubjects[test_index], test_single_score))
+			test_subjects = [uniqueSubjects[x] for x in test_indices]	
+			print('test on %s' % test_subjects)	
+			test_inputs, test_labels, test_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)	
+			
+			scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, valid_indices)
+			scaled_test_inputs = scaler.transform(test_inputs)
+			test_predictions = cls.predict_proba(scaled_test_inputs)
 
-			merged_predictions, merged_filenames = merge_labels_by_filename(test_single_filenames, test_single_predictions)
-			merged_labels_one_hot, merged_label_filenames = merge_labels_by_filename(test_single_filenames, dense_to_one_hot(test_single_labels))
-			merged_subject_score = log_loss(merged_labels_one_hot, merged_predictions)
-			print('merged subject score: %s' % merged_subject_score)
+			score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
+			print('naive test log loss score: %s' % score)
 
-			all_subject_scores[uniqueSubjects[test_index]] = merged_subject_score
+			for test_index in test_indices:
+				test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
+				test_single_inputs = scaler.transform(test_single_inputs)
+				
+				test_single_predictions = cls.predict_proba(test_single_inputs)
+				test_single_score = log_loss(dense_to_one_hot(test_single_labels), test_single_predictions)
+				print('Testing on single subject %s: %s' % (uniqueSubjects[test_index], test_single_score))
 
-			all_predictions.append(merged_predictions)
-			all_labels.append(merged_labels_one_hot)
+				merged_predictions, merged_filenames = merge_labels_by_filename(test_single_filenames, test_single_predictions)
+				merged_labels_one_hot, merged_label_filenames = merge_labels_by_filename(test_single_filenames, dense_to_one_hot(test_single_labels))
+				merged_subject_score = log_loss(merged_labels_one_hot, merged_predictions)
+				print('merged subject score: %s' % merged_subject_score)
 
-	for subject in all_subject_scores:
-		print('%s : %s' % (subject, all_subject_scores[subject]))
+				all_subject_scores[uniqueSubjects[test_index]] = merged_subject_score
 
-	all_labels = np.concatenate(all_labels)
-	all_predictions = np.concatenate(all_predictions)
+				all_predictions.append(merged_predictions)
+				all_labels.append(merged_labels_one_hot)
 
-	overall_score = log_loss(all_labels, all_predictions)
-	print('overall log loss score: %s' % overall_score)
+		for subject in all_subject_scores:
+			print('%s : %s' % (subject, all_subject_scores[subject]))
+
+		all_labels = np.concatenate(all_labels)
+		all_predictions = np.concatenate(all_predictions)
+
+		overall_score = log_loss(all_labels, all_predictions)
+		print('overall log loss score: %s' % overall_score)
 
 
-### Make predictions on kaggle test data ###
-if True:
-	train_indices = range(len(uniqueSubjects))
-	scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, [])
+	### Make predictions on kaggle test data ###
+	if True:
+		train_indices = range(len(uniqueSubjects))
+		scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, [])
 
-	test_data, test_filenames = load_testing_data()
-	scaled_test_data = scaler.transform(np.concatenate(test_data).astype('float32'))
-	test_predictions = cls.predict_proba(scaled_test_data)
-	merged_test_predictions, merged_test_filenames = merge_labels_by_filename(test_filenames, test_predictions)
+		test_data, test_filenames = load_testing_data()
+		flattened_filenames = list(itertools.chain(*test_filenames))
+		scaled_test_data = scaler.transform(np.concatenate(test_data).astype('float32'))
 
-	write_submission_file(merged_test_predictions, merged_test_filenames)
+		print('length of flatten filenames: %s' % len(flattened_filenames))
+		print('shape of scaled test data: %s' % str(scaled_test_data.shape))
+
+		test_predictions = cls.predict_proba(scaled_test_data)
+		merged_test_predictions, merged_test_filenames = merge_labels_by_filename(flattened_filenames, test_predictions)
+
+		write_submission_file(merged_test_predictions, merged_test_filenames)
+
+
+if __name__ == "__main__":
+	main()
