@@ -68,6 +68,9 @@ def create_model_conv1(img_rows, img_cols, isColor = 0):
     #sgd = SGD()#lr=2E-2, momentum=0.5, decay = 0.01)
     #model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"], )
 
+
+    model.summary()
+
     model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
 
     return model

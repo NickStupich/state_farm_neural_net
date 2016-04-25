@@ -1,0 +1,9 @@
+unsupervised pre-training - cnn autoencoder
+	- calculate pixel errors vs simple decimation
+
+random image sub-sampling during training, average everything during test
+
+rotations prior to image size reduction
+color?
+tying into git
+better data cacheing
