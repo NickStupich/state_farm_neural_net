@@ -7,31 +7,26 @@ import os
 import os.path
 
 from sklearn.preprocessing import StandardScaler
-
-import keras_1
-from keras.callbacks import EarlyStopping
-
 from sklearn.metrics import log_loss
 
-result_img_size = (40, 40)
+from keras.callbacks import EarlyStopping
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation, Flatten, Reshape
+from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.layers.noise import GaussianNoise
+from keras.optimizers import SGD
+from keras.models import model_from_json
+
+from RandomImageSliceLayer import RandomImageSliceLayer
+
+result_img_size = (64, 48)
 color = 0
 def load_data_for_img(filename, prefix='train/'):
 	img = cv2.imread(prefix + filename, color)
-	#crop_regions = [[[0,400], [0, 400]], [[240, 640], [0, 400]], [[0,400], [80,480]], [[240, 640], [80, 480]]]
-	x_crop_size = 400
-	y_crop_size = 400
-	crop_regions = []
-	for y_start in [0, 40, 80]:
-		for x_start in [0, 80, 160, 240]:
-			crop_regions.append(((x_start, x_start + x_crop_size),(y_start, y_start + y_crop_size)))
-	result = [np.ndarray.flatten(cv2.resize(img[region[0][0]:region[0][1], region[1][0]:region[1][1]], result_img_size, interpolation=cv2.INTER_AREA)) for region in crop_regions]
+	img_small = cv2.resize(img, result_img_size, interpolation=cv2.INTER_AREA)
+	result = [np.ndarray.flatten(img_small)]
 	
 	return result
-
-	#img_small = cv2.resize(img, result_img_size, interpolation=cv2.INTER_AREA)
-	#pixels = np.ndarray.flatten(img_small)
-
-	#return [pixels]
 
 def dense_to_one_hot(labels_dense, num_classes=10):
   """Convert class labels from scalars to one-hot vectors."""
@@ -46,8 +41,48 @@ def dense_to_one_hot(labels_dense, num_classes=10):
   # exit(0)
   return labels_one_hot
 
+def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
+    nb_classes = 10
+    model = Sequential()
+
+    nb_filters = 16
+    nb_pool = 3
+    nb_conv = 3
+    cropped_size = (40, 40)
+
+    model = Sequential()
+
+    colorDim = 3 if isColor else 1
+
+    model.add(Reshape(input_shape=(img_rows*img_cols*colorDim,), target_shape = (colorDim, img_rows, img_cols)))
+
+    model.add(RandomImageSliceLayer(output_img_size = cropped_size))
+
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid'))
+    model.add(Activation('relu'))
+    
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.5))
+
+    model.add(Flatten())
+
+    model.add(Dense(128))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+
+    model.add(Dense(nb_classes))
+    model.add(Activation('softmax'))
+
+    model.summary()
+
+    model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
+
+    return model
+
 def load_all_subject_data():
-	cache_fn = 'data.pickle'
+	cache_fn = 'data_single.pickle'
 
 	if os.path.isfile(cache_fn):
 		print('Loading data from pickled file')
@@ -92,7 +127,7 @@ def load_all_subject_data():
 	return result
 
 def load_testing_data():	
-	cache_fn = 'test_data.pickle'
+	cache_fn = 'test_data_single.pickle'
 
 	if os.path.isfile(cache_fn):
 		print('Loading test data from pickled file')
@@ -138,7 +173,7 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	scaler = StandardScaler(copy=False)
 	train_inputs = scaler.fit_transform(train_inputs)
 
-	cls = keras_1.create_model_conv1(result_img_size[0], result_img_size[1], color)
+	cls = create_model_conv_cropped(result_img_size[0], result_img_size[1], color)
 	callbacks = []
 	if len(valid_indices) > 0:
 
@@ -154,7 +189,7 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
-			nb_epoch=4, 
+			nb_epoch=72, 
 			batch_size = 256, 
 			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
@@ -171,6 +206,21 @@ def write_submission_file(predictions, filenames):
 
 	f.close()
 	print('done submission file')
+
+def get_predictions2(cls, test_inputs, n=32):
+	result = np.zeros((test_inputs.shape[0], 10))
+	for j, test_input in enumerate(test_inputs):
+		test_outputs = np.zeros((n, 10))
+		for i in range(n):
+			test_outputs[i] = cls.predict_proba(np.array([test_input]), verbose=False)
+
+		result[j] = np.mean(test_outputs, axis=0)
+
+		if j == 0 and False:
+			print(test_outputs)
+			print(result[j])
+
+	return result
 
 def main():	
 	subjects_data = load_all_subject_data()
@@ -194,17 +244,21 @@ def main():
 			test_inputs, test_labels, test_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)	
 			
 			scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, valid_indices)
-			scaled_test_inputs = scaler.transform(test_inputs)
-			test_predictions = cls.predict_proba(scaled_test_inputs)
+			#scaled_test_inputs = scaler.transform(test_inputs)
+			#test_predictions = cls.predict_proba(scaled_test_inputs)
 
-			score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
-			print('naive test log loss score: %s' % score)
+			#score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
+			#print('naive test log loss score: %s' % score)
 
 			for test_index in test_indices:
 				test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
 				test_single_inputs = scaler.transform(test_single_inputs)
 				
-				test_single_predictions = cls.predict_proba(test_single_inputs)
+				#test_single_predictions = cls.predict_proba(test_single_inputs)
+				#test_single_predictions = np.array(list(map(lambda x: get_prediction_for_test_line(cls, x), test_single_inputs)))
+				test_single_predictions = get_predictions2(cls, test_single_inputs)
+				print('test single predictions shape: %s' % str(test_single_predictions.shape))
+
 				test_single_score = log_loss(dense_to_one_hot(test_single_labels), test_single_predictions)
 				print('Testing on single subject %s: %s' % (uniqueSubjects[test_index], test_single_score))
 
@@ -229,7 +283,7 @@ def main():
 
 
 	### Make predictions on kaggle test data ###
-	if True:
+	if False:
 		train_indices = range(len(uniqueSubjects))
 		scaler, cls = get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indices, [])
 
@@ -244,7 +298,6 @@ def main():
 		merged_test_predictions, merged_test_filenames = merge_labels_by_filename(flattened_filenames, test_predictions)
 
 		write_submission_file(merged_test_predictions, merged_test_filenames)
-
 
 if __name__ == "__main__":
 	main()

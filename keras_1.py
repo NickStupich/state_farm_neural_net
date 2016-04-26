@@ -6,7 +6,6 @@ from keras.optimizers import SGD
 from keras.utils import np_utils
 from keras.models import model_from_json
 from keras.regularizers import *
-from keras.optimizers import SGD
 
 def create_model_logReg(img_rows, img_cols):
     nb_classes = 10
