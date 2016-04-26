@@ -52,7 +52,7 @@ if __name__ == '__main__':
     if not False:
         model.compile(optimizer='rmsprop', loss='mean_squared_error')
         model.summary()
-        model.fit(X_train, X_train, nb_epoch=20, batch_size=512, validation_split=0.2,
+        model.fit(X_train, X_train, nb_epoch=200, batch_size=512, validation_split=0.2,
                   callbacks=[EarlyStopping(patience=3)])
         model.save_weights('./conv.neuro', overwrite=True)
     else:
