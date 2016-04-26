@@ -189,7 +189,7 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
-			nb_epoch=72, 
+			nb_epoch=320, 
 			batch_size = 256, 
 			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
@@ -207,7 +207,7 @@ def write_submission_file(predictions, filenames):
 	f.close()
 	print('done submission file')
 
-def get_predictions2(cls, test_inputs, n=32):
+def get_predictions2(cls, test_inputs, n=64):
 	result = np.zeros((test_inputs.shape[0], 10))
 	for j, test_input in enumerate(test_inputs):
 		test_outputs = np.zeros((n, 10))
