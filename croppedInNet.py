@@ -1,4 +1,6 @@
 import numpy as np
+np.random.seed(5)
+
 import pandas
 import cv2
 import itertools
@@ -16,6 +18,7 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.noise import GaussianNoise
 from keras.optimizers import SGD
 from keras.models import model_from_json
+from keras.layers.normalization import BatchNormalization
 
 from RandomImageSliceLayer import RandomImageSliceLayer
 
@@ -30,7 +33,7 @@ def load_data_for_img(filename, prefix='train/'):
 
 def dense_to_one_hot(labels_dense, num_classes=10):
   """Convert class labels from scalars to one-hot vectors."""
-  num_labels = labels_dense.shape[0]
+  num_labels = len(labels_dense)
   index_offset = np.arange(num_labels) * num_classes
   labels_one_hot = np.zeros((num_labels, num_classes))
 
@@ -58,6 +61,8 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
 
     model.add(RandomImageSliceLayer(output_img_size = cropped_size))
 
+    model.add(BatchNormalization(mode=1))
+
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid'))
     model.add(Activation('relu'))
     
@@ -77,6 +82,8 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
 
     model.summary()
 
+    #sgd = SGD()
+    #model.compile(loss='categorical_crossentropy', optimizer=sgd)
     model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
 
     return model
@@ -171,8 +178,8 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	train_inputs, train_labels, train_filenames = getInputsAndLabelsForSubjects(subjects_data, train_indices)
 
 	scaler = StandardScaler(copy=False)
-	train_inputs = scaler.fit_transform(train_inputs)
-
+	#train_inputs = scaler.fit_transform(train_inputs)
+	#train_inputs = (train_inputs - 128.) / 256.
 	cls = create_model_conv_cropped(result_img_size[0], result_img_size[1], color)
 	callbacks = []
 	if len(valid_indices) > 0:
@@ -180,17 +187,18 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 		valid_subjects = [uniqueSubjects[x] for x in valid_indices]
 		print('validate on %s' % valid_subjects)
 		valid_inputs, valid_labels, valid_filenames = getInputsAndLabelsForSubjects(subjects_data, valid_indices)
-		valid_inputs = scaler.transform(valid_inputs, copy=False)
-	
+		#valid_inputs = scaler.transform(valid_inputs, copy=False)
+		#valid_inputs = (valid_inputs - 128.) / 256.
+
 		early_stop = EarlyStopping(monitor='val_loss', patience=50, verbose=1)
-		callbacks.append(early_stop)
+		#callbacks.append(early_stop)
 
 
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
-			nb_epoch=320, 
-			batch_size = 256, 
+			nb_epoch=500, 
+			batch_size = 64, 
 			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
 
@@ -207,14 +215,23 @@ def write_submission_file(predictions, filenames):
 	f.close()
 	print('done submission file')
 
-def get_predictions2(cls, test_inputs, n=64):
-	result = np.zeros((test_inputs.shape[0], 10))
+def get_predictions2(cls, test_inputs, n=16):
+	result = np.zeros((test_inputs.shape[0]*n, 10))
 	for j, test_input in enumerate(test_inputs):
-		test_outputs = np.zeros((n, 10))
+		#test_outputs = np.zeros((n, 10))
 		for i in range(n):
-			test_outputs[i] = cls.predict_proba(np.array([test_input]), verbose=False)
+			#test_outputs[i] = cls.predict_proba(np.array([test_input]), verbose=False)
+			result[n*j+i] = cls.predict_proba(np.array([test_input]), verbose=False)	
+		#print(test_outputs[:,0])
+		#exit(0)
+		
+		# if 1: #arithmetic mean	
+		# 	result[j] = np.mean(test_outputs, axis=0)
+		# elif 0: #geometric mean
+		# 	result[j] = np.exp(np.mean(np.log(test_outputs), axis=0))
 
-		result[j] = np.mean(test_outputs, axis=0)
+		#result[n*j:n*(j+1)] = test_outputs		
+		
 
 		if j == 0 and False:
 			print(test_outputs)
@@ -229,12 +246,15 @@ def main():
 
 	if True:
 		all_subject_scores = {}
-		num_test_subjects = 6
-		num_valid_subjects = 0
+		num_test_subjects = 5
+		num_valid_subjects = 1
 
 		all_predictions = []
 		all_labels = []
-		for fold in range(int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))):
+		num_folds = int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))
+		#num_folds = 1
+
+		for fold in range(num_folds):
 			test_indices = list(map(lambda x: x % len(uniqueSubjects), range(fold*(num_test_subjects),(fold+1)*(num_test_subjects))))
 			valid_indices = list(map(lambda x: x % len(uniqueSubjects), range((fold+1)*num_test_subjects, (fold+1)*num_test_subjects+num_valid_subjects)))
 			train_indices = [x for x in range(len(uniqueSubjects)) if not (x in test_indices or x in valid_indices)]
@@ -252,11 +272,15 @@ def main():
 
 			for test_index in test_indices:
 				test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
-				test_single_inputs = scaler.transform(test_single_inputs)
-				
+				#test_single_inputs = scaler.transform(test_single_inputs)
+				#test_single_inputs = (test_single_inputs-128.)/256.				
+
 				#test_single_predictions = cls.predict_proba(test_single_inputs)
-				#test_single_predictions = np.array(list(map(lambda x: get_prediction_for_test_line(cls, x), test_single_inputs)))
-				test_single_predictions = get_predictions2(cls, test_single_inputs)
+				n = 128
+				test_single_predictions = get_predictions2(cls, test_single_inputs, n)
+				test_single_filenames = [fn for fn in test_single_filenames for _ in range(n) ]
+				test_single_labels = [label for label in test_single_labels for _ in range(n) ]
+
 				print('test single predictions shape: %s' % str(test_single_predictions.shape))
 
 				test_single_score = log_loss(dense_to_one_hot(test_single_labels), test_single_predictions)

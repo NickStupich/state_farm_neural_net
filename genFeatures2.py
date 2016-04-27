@@ -179,8 +179,8 @@ def main():
 
 	if True:
 		all_subject_scores = {}
-		num_test_subjects = 6
-		num_valid_subjects = 0
+		num_test_subjects = 5
+		num_valid_subjects = 1
 
 		all_predictions = []
 		all_labels = []
