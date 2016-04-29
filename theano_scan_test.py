@@ -93,10 +93,6 @@ if 1:
 	size_y = T.iscalar('size_y')
 
 	def get_sub_image(input_img, a_location, size_x, size_y):
-		# result = T.zeros((input_imgs.shape[0], size_x, size_y))
-		# for i in range(input_imgs.shape[0]):
-		# 	T.set_subtensor(result_subtensor, input_imgs[i, a_location[0]:a_location[0]+size_x, a_location[1]:a_location[1]+size_y])
-
 		result = input_img[a_location[0]:a_location[0]+size_x, a_location[1]:a_location[1]+size_y]
 		return result
 
