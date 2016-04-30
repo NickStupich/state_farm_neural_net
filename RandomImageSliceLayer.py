@@ -4,7 +4,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 
 import theano
 
-def crop_img(input_img, size, location):
+def crop_img(input_img, location, size):
 	print('crop_img')
 	#print(a_location.shape)
 	print(location)
@@ -42,7 +42,7 @@ class RandomImageSliceLayer(Layer):
 		# offsets = theano.tensor.set_subtensor(y_offsets_subtensor, np.repeat(np.arange(self.y_offset_range+1), self.x_offset_range+1))
 
 		#offsets_np = np.array([[y, x] for x in range(self.x_offset_range+1) for y in range(self.y_offset_range+1)])
-		offsets_np = np.array([[2, 2, 0], [1, 1, 0], [0, 0, 0]])#.reshape(9, 2)
+		offsets_np = np.array([[0, 0], [1, 1], [2, 2], [1, 1], [1, 1], [0, 0], [1, 1], [1, 1], [0, 0]])#.reshape(9, 2)
 		print(offsets_np)
 		# print(offsets_np)
 		# print(offsets_np.shape)
@@ -62,13 +62,14 @@ class RandomImageSliceLayer(Layer):
 		# 	non_sequences = [self.output_img_size[0], self.output_img_size[1]],
 		# 	)
 
-		sizes = np.tile(np.array([self.output_img_size[0], self.output_img_size[1], 17]), 9)#.reshape(9, 2)
+		#sizes = np.tile(np.array([self.output_img_size[0], self.output_img_size[1]]), 9).reshape(9, 2)
+		sizes = np.array([self.output_img_size[0], self.output_img_size[1]])
 		print(sizes)
 		sizes = theano.shared(sizes)
 
-		r1, u1 = theano.scan(crop_img,
-			sequences = [x, sizes, offsets],
-			non_sequences = [],
+		r1, u1 = theano.map(crop_img,
+			sequences = [x, offsets],
+			non_sequences = [sizes],
 			name='crop image map func'
 			)
 
@@ -102,9 +103,9 @@ if __name__ == "__main__":
 	single_test_data = np.arange(raw_size[0]*raw_size[1]).reshape(raw_size).astype('float32')	
 	test_data = np.tile(single_test_data, (n_samples, 1)).reshape((n_samples, raw_size[0], raw_size[1]))
 
-	print(test_data[1][0])
+	print(test_data[0])
 	print(test_data.shape)
 
-	cropped_data = model.predict(test_data, batch_size=2)
+	cropped_data = model.predict(test_data, batch_size=n_samples)
 	print(cropped_data)
 	print(cropped_data.shape)
