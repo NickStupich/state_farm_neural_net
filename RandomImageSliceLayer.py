@@ -22,22 +22,35 @@ class RandomImageSliceLayer(Layer):
 		self.batch_size = self.input_img_size[0]
 		self.x_offset_range = self.input_img_size[0] - self.output_img_size[0]+1
 		self.y_offset_range = self.input_img_size[1] - self.output_img_size[1]+1
-		print('offset ranges: %d, %d' % (self.x_offset_range, self.y_offset_range))
+		#print('offset ranges: %d, %d' % (self.x_offset_range, self.y_offset_range))
 
 	def call(self, x, mask=None):	
 		if 0:
-			x_offsets = self.rng.random_integers((x.shape[0],2), low=0, high=self.x_offset_range)
-			y_offsets_subtensor = x_offsets[:,1]
-			offsets = theano.tensor.set_subtensor(y_offsets_subtensor, self.rng.random_integers((x.shape[0],), low=0, high=self.y_offset_range), )
-		elif 0:
-			offsets_np = np.array([[x, y] for x in range(self.x_offset_range) for y in range(self.y_offset_range)])
+			n = self.x_offset_range*self.y_offset_range
+			# x_offsets = self.rng.random_integers((n,2), low=0, high=self.x_offset_range)
+			# y_offsets_subtensor = x_offsets[:,1]
+			# offsets = theano.tensor.set_subtensor(y_offsets_subtensor, self.rng.random_integers(n, low=0, high=self.y_offset_range))
+			offsets_np = np.zeros((n, 2), dtype=int)
+			offsets_np[:,0] = np.random.randint(0, self.x_offset_range, n)
+			offsets_np[:,1] = np.random.randint(0, self.y_offset_range, n)
+			# offsets_np = np.concatenate((, np.random.randint(0, self.y_offset_range, n))).reshape(-1, 2)
+			#print(offsets_np)
+			offsets = theano.shared(offsets_np)
+		elif 1:
+			step = 4
+			offsets_np = np.array([[x, y] for x in range(0, self.x_offset_range, step) for y in range(0, self.y_offset_range, step)])
 			#print(offsets_np)
 			offsets = theano.shared(offsets_np)
 		else:
 			crop_regions = []
 			for y_start in [0, 4, 8]:
-				for x_start in [0, 8, 16, 24]:
+				# for x_start in [0, 8, 16, 24]:					
+				for x_start in [0, 4, 8, 12, 16, 20, 24]:
+			#for y_start in range(0, 8+1, 4):
+			#	for x_start in range(0, 24+1, 4):
 					crop_regions.append([x_start, y_start])
+
+			print('num offsets: %d' % len(crop_regions))
 
 			repeat_factor = int(np.ceil(float(self.batch_size) / len(crop_regions)))
 			#print('repeat factor: %d' % repeat_factor)

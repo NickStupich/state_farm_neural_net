@@ -25,8 +25,8 @@ from RandomImageSliceLayer import RandomImageSliceLayer
 
 result_img_size = (64, 48)
 cropped_size = (40, 40)
-# n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
-n_sub_images = 12
+#n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
+n_sub_images = 21
 color = 0
 def load_data_for_img(filename, prefix='train/'):
 	img = cv2.imread(prefix + filename, color)
@@ -52,8 +52,8 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
     nb_classes = 10
     model = Sequential()
 
-    nb_filters = 16
-    nb_pool = 3
+    nb_filters = 32
+    nb_pool = 2
     nb_conv = 3
 
     model = Sequential()
@@ -68,11 +68,13 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
 
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid'))
     model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.5))
+
+    # model.add(Dropout(0.5))
 
     model.add(Flatten())
 
@@ -200,8 +202,8 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
-			nb_epoch=100, 
-			batch_size = 64,#n_sub_images, 
+			nb_epoch=20, 
+			batch_size = n_sub_images, 
 			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
 
@@ -220,6 +222,7 @@ def write_submission_file(predictions, filenames):
 
 def get_predictions2(cls, test_inputs):
 	n = n_sub_images
+	all_predictions = np.zeros((test_inputs.shape[0], n, 10))
 	result = np.zeros((test_inputs.shape[0], 10))
 	
 	print('getting predictions averaged over %d cropped windows...' % n)
@@ -228,31 +231,16 @@ def get_predictions2(cls, test_inputs):
 		sys.stdout.flush()
 		all_inputs = np.tile(test_input, (n, 1))
 		predictions = cls.predict_proba(all_inputs, verbose=False)
+		all_predictions[j] = predictions
 
-		if 1: #arithmetic mean	
+		if 0: #arithmetic mean	
 			result[j] = np.mean(predictions, axis=0)
-		elif 0: #geometric mean
+		elif 1: #geometric mean
 			result[j] = np.exp(np.mean(np.log(predictions), axis=0))
 
-		#for i in range(n):
-			#test_outputs[i] = cls.predict_proba(np.array([test_input]), verbose=False)
-			#result[n*j+i] = cls.predict_proba(np.array([test_input]), verbose=False)	
-		#print(test_outputs[:,0])
-		#exit(0)
-		
-		# if 1: #arithmetic mean	
-		# 	result[j] = np.mean(test_outputs, axis=0)
-		# elif 0: #geometric mean
-		# 	result[j] = np.exp(np.mean(np.log(test_outputs), axis=0))
-
-		#result[n*j:n*(j+1)] = test_outputs		
-		
-
-		# if j == 0 and False:
-		# 	print(test_outputs)
-		# 	print(result[j])
-
 	print('\ndone')
+
+	np.save('validation_predictions2', all_predictions)
 
 	return result
 
@@ -286,6 +274,21 @@ def main():
 
 			#score = log_loss(dense_to_one_hot(test_labels), test_predictions)	
 			#print('naive test log loss score: %s' % score)
+
+			for valid_index in valid_indices:
+				valid_single_inputs, valid_single_labels, valid_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [valid_index])
+				print('validation input shape: %s' % str(valid_single_inputs.shape))
+				print('validation labels shape: %s' % str(valid_single_labels.shape))
+
+
+				valid_single_predictions = get_predictions2(cls, valid_single_inputs)
+				np.save('validation_single_labels', valid_single_labels)
+				print('validation predictions shape: %s' % str(valid_single_predictions.shape))
+				valid_single_score = log_loss(dense_to_one_hot(valid_single_labels), valid_single_predictions)
+				print('validation subject %s score: %s' % (uniqueSubjects[valid_index], str(valid_single_score)))
+				return
+				
+
 
 			for test_index in test_indices:
 				test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
