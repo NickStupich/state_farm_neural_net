@@ -7,6 +7,7 @@ import itertools
 import pickle
 import os
 import os.path
+import sys
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import log_loss
@@ -23,6 +24,9 @@ from keras.layers.normalization import BatchNormalization
 from RandomImageSliceLayer import RandomImageSliceLayer
 
 result_img_size = (64, 48)
+cropped_size = (40, 40)
+#n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
+n_sub_images = 12
 color = 0
 def load_data_for_img(filename, prefix='train/'):
 	img = cv2.imread(prefix + filename, color)
@@ -51,7 +55,6 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
     nb_filters = 16
     nb_pool = 3
     nb_conv = 3
-    cropped_size = (40, 40)
 
     model = Sequential()
 
@@ -193,12 +196,12 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 		early_stop = EarlyStopping(monitor='val_loss', patience=50, verbose=1)
 		#callbacks.append(early_stop)
 
-
+	print('train_inputs.shape: %s' % str(train_inputs.shape))
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
 			nb_epoch=100, 
-			batch_size = 64, 
+			batch_size = 64,#n_sub_images, 
 			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
 
@@ -215,13 +218,25 @@ def write_submission_file(predictions, filenames):
 	f.close()
 	print('done submission file')
 
-def get_predictions2(cls, test_inputs, n=16):
-	result = np.zeros((test_inputs.shape[0]*n, 10))
+def get_predictions2(cls, test_inputs):
+	n = n_sub_images
+	result = np.zeros((test_inputs.shape[0], 10))
+	
+	print('getting predictions averaged over %d cropped windows...' % n)
 	for j, test_input in enumerate(test_inputs):
-		#test_outputs = np.zeros((n, 10))
-		for i in range(n):
+		sys.stdout.write('\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b%d/%d' % (j, len(test_inputs)))
+		sys.stdout.flush()
+		all_inputs = np.tile(test_input, (n, 1))
+		predictions = cls.predict_proba(all_inputs, verbose=False)
+
+		if 1: #arithmetic mean	
+			result[j] = np.mean(predictions, axis=0)
+		elif 0: #geometric mean
+			result[j] = np.exp(np.mean(np.log(predictions), axis=0))
+
+		#for i in range(n):
 			#test_outputs[i] = cls.predict_proba(np.array([test_input]), verbose=False)
-			result[n*j+i] = cls.predict_proba(np.array([test_input]), verbose=False)	
+			#result[n*j+i] = cls.predict_proba(np.array([test_input]), verbose=False)	
 		#print(test_outputs[:,0])
 		#exit(0)
 		
@@ -233,9 +248,11 @@ def get_predictions2(cls, test_inputs, n=16):
 		#result[n*j:n*(j+1)] = test_outputs		
 		
 
-		if j == 0 and False:
-			print(test_outputs)
-			print(result[j])
+		# if j == 0 and False:
+		# 	print(test_outputs)
+		# 	print(result[j])
+
+	print('\ndone')
 
 	return result
 
@@ -272,14 +289,14 @@ def main():
 
 			for test_index in test_indices:
 				test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
-				#test_single_inputs = scaler.transform(test_single_inputs)
+				# test_single_inputs = scaler.transform(test_single_inputs)
 				#test_single_inputs = (test_single_inputs-128.)/256.				
 
 				#test_single_predictions = cls.predict_proba(test_single_inputs)
-				n = 128
-				test_single_predictions = get_predictions2(cls, test_single_inputs, n)
-				test_single_filenames = [fn for fn in test_single_filenames for _ in range(n) ]
-				test_single_labels = [label for label in test_single_labels for _ in range(n) ]
+				#n = 128
+				test_single_predictions = get_predictions2(cls, test_single_inputs)
+				#test_single_filenames = [fn for fn in test_single_filenames for _ in range(n) ]
+				#test_single_labels = [label for label in test_single_labels for _ in range(n) ]
 
 				print('test single predictions shape: %s' % str(test_single_predictions.shape))
 
