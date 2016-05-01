@@ -25,7 +25,7 @@ from RandomImageSliceLayer import RandomImageSliceLayer
 
 result_img_size = (64, 48)
 cropped_size = (40, 40)
-#n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
+# n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
 n_sub_images = 12
 color = 0
 def load_data_for_img(filename, prefix='train/'):
@@ -289,7 +289,7 @@ def main():
 
 			for test_index in test_indices:
 				test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, [test_index])
-				# test_single_inputs = scaler.transform(test_single_inputs)
+				#test_single_inputs = scaler.transform(test_single_inputs)
 				#test_single_inputs = (test_single_inputs-128.)/256.				
 
 				#test_single_predictions = cls.predict_proba(test_single_inputs)
