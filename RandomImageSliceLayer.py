@@ -37,7 +37,7 @@ class RandomImageSliceLayer(Layer):
 			#print(offsets_np)
 			offsets = theano.shared(offsets_np)
 		elif 1:
-			step = 4
+			step = 1
 			offsets_np = np.array([[x, y] for x in range(0, self.x_offset_range, step) for y in range(0, self.y_offset_range, step)])
 			#print(offsets_np)
 			offsets = theano.shared(offsets_np)

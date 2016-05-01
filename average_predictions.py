@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.metrics import log_loss
 
-n=21
+n=225
 
 def dense_to_one_hot(labels_dense, num_classes=10):
 	"""Convert class labels from scalars to one-hot vectors."""

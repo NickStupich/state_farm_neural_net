@@ -12,7 +12,7 @@ import sys
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import log_loss
 
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, RemoteMonitor
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten, Reshape
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
@@ -20,13 +20,14 @@ from keras.layers.noise import GaussianNoise
 from keras.optimizers import SGD
 from keras.models import model_from_json
 from keras.layers.normalization import BatchNormalization
+from keras.regularizers import *
 
 from RandomImageSliceLayer import RandomImageSliceLayer
 
 result_img_size = (64, 48)
 cropped_size = (40, 40)
-#n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
-n_sub_images = 21
+n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
+#n_sub_images = 21
 color = 0
 def load_data_for_img(filename, prefix='train/'):
 	img = cv2.imread(prefix + filename, color)
@@ -66,30 +67,31 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
 
     model.add(BatchNormalization(mode=1))
 
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid'))
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid'))#, activity_regularizer=activity_l2(0.01)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))#, activity_regularizer=activity_l2(0.01)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
 
-    # model.add(Dropout(0.5))
+    model.add(Dropout(0.5))
 
     model.add(Flatten())
 
-    model.add(Dense(128))
+    model.add(Dense(256, activity_regularizer=activity_l2(0.01)))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
-    model.add(Dense(nb_classes))
+    model.add(Dense(nb_classes, activity_regularizer=activity_l2(0.01)))
     model.add(Activation('softmax'))
 
     model.summary()
 
     #sgd = SGD()
     #model.compile(loss='categorical_crossentropy', optimizer=sgd)
-    model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
+    # model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=["accuracy"])
+    model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=["accuracy"])
 
     return model
 
@@ -187,6 +189,7 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	#train_inputs = (train_inputs - 128.) / 256.
 	cls = create_model_conv_cropped(result_img_size[0], result_img_size[1], color)
 	callbacks = []
+	# callbacks.append(RemoteMonitor(root='http://localhost:9000'))
 	if len(valid_indices) > 0:
 
 		valid_subjects = [uniqueSubjects[x] for x in valid_indices]
@@ -202,7 +205,7 @@ def get_trained_classifier_and_scaler(subjects_data, uniqueSubjects, train_indic
 	cls.fit(train_inputs, 
 			dense_to_one_hot(train_labels), 
 			shuffle=True, 
-			nb_epoch=20, 
+			nb_epoch=100, 
 			batch_size = n_sub_images, 
 			validation_data=(valid_inputs, dense_to_one_hot(valid_labels)) if len(valid_indices) > 0 else None, 
 			callbacks=callbacks)
@@ -286,7 +289,7 @@ def main():
 				print('validation predictions shape: %s' % str(valid_single_predictions.shape))
 				valid_single_score = log_loss(dense_to_one_hot(valid_single_labels), valid_single_predictions)
 				print('validation subject %s score: %s' % (uniqueSubjects[valid_index], str(valid_single_score)))
-				return
+				# return
 				
 
 
