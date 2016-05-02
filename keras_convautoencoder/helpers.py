@@ -152,6 +152,27 @@ def show_representations(model, X_test, number=8, dim=28, do_reshape=True):
     show_image([(oned_to_flat(_o), 'Source'), (oned_to_flat(_r), 'Representations')])
 
 
+
+def show_representations2(model, X_test, number=2, dim_x=48, dim_y=64, do_reshape=True):
+    representations = model.predict(X_test[:number**2, ...])
+
+    def flat_to_shaped(x):
+        return x.reshape((x.shape[0], dim_x, dim_y,1)) if do_reshape else x
+
+    _r = tile_raster_images(
+            X=flat_to_shaped(representations),
+            img_shape=(dim_x, dim_y), tile_shape=(number, number),
+            tile_spacing=(1, 1), output_pixel_vals=False)
+
+    _o = tile_raster_images(
+            X=flat_to_shaped(X_test),
+            img_shape=(dim_x, dim_y), tile_shape=(number, number),
+            tile_spacing=(1, 1), output_pixel_vals=False)
+    print(_r.min())
+    print(_r.max())
+    show_image([(oned_to_flat(_o), 'Source'), (oned_to_flat(_r), 'Representations')], bw=True)
+
+
 def keras2rgb(t):
     return np.swapaxes(np.swapaxes(t, 1, 2), 2, 3)
 

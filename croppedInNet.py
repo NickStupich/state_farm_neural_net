@@ -26,9 +26,12 @@ from RandomImageSliceLayer import RandomImageSliceLayer
 
 result_img_size = (64, 48)
 cropped_size = (40, 40)
-n_sub_images = (result_img_size[0]-cropped_size[0]+1)*(result_img_size[1]-cropped_size[1]+1)
+crop_step_size = 4
+n_sub_images = ((result_img_size[0]-cropped_size[0])/crop_step_size+1)*((result_img_size[1]-cropped_size[1])/crop_step_size+1)
+print('number of cropped sub-images: %d' % n_sub_images)
 #n_sub_images = 21
 color = 0
+
 def load_data_for_img(filename, prefix='train/'):
 	img = cv2.imread(prefix + filename, color)
 	img_small = cv2.resize(img, result_img_size, interpolation=cv2.INTER_AREA)
@@ -63,7 +66,7 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
 
     model.add(Reshape(input_shape=(img_rows*img_cols*colorDim,), target_shape = (colorDim, img_rows, img_cols)))
 
-    model.add(RandomImageSliceLayer(output_img_size = cropped_size))
+    model.add(RandomImageSliceLayer(output_img_size = cropped_size, crop_step_size = crop_step_size))
 
     model.add(BatchNormalization(mode=1))
 
@@ -79,11 +82,11 @@ def create_model_conv_cropped(img_rows, img_cols, isColor = 0):
 
     model.add(Flatten())
 
-    model.add(Dense(256, activity_regularizer=activity_l2(0.01)))
+    model.add(Dense(128))#, activity_regularizer=activity_l2(0.01)))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
-    model.add(Dense(nb_classes, activity_regularizer=activity_l2(0.01)))
+    model.add(Dense(nb_classes))#, activity_regularizer=activity_l2(0.01)))
     model.add(Activation('softmax'))
 
     model.summary()
@@ -236,9 +239,9 @@ def get_predictions2(cls, test_inputs):
 		predictions = cls.predict_proba(all_inputs, verbose=False)
 		all_predictions[j] = predictions
 
-		if 0: #arithmetic mean	
+		if 1: #arithmetic mean	
 			result[j] = np.mean(predictions, axis=0)
-		elif 1: #geometric mean
+		elif 0: #geometric mean
 			result[j] = np.exp(np.mean(np.log(predictions), axis=0))
 
 	print('\ndone')

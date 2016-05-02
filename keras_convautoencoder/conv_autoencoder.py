@@ -21,27 +21,27 @@ def load_data():
 
 def build_model(nb_filters=32, nb_pool=2, nb_conv=3):
     model = models.Sequential()
-    d = Dense(30)
+    #d = Dense(30)
     c = Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='same', input_shape=(1, 28, 28))
-    mp =MaxPooling2D(pool_size=(nb_pool, nb_pool))
+    #mp = MaxPooling2D(pool_size=(nb_pool, nb_pool))
     # =========      ENCODER     ========================
     model.add(c)
-    model.add(Activation('tanh'))
-    model.add(mp)
-    model.add(Dropout(0.25))
+    #model.add(Activation('tanh'))
+    #model.add(mp)
+    #model.add(Dropout(0.25))
     # =========      BOTTLENECK     ======================
-    model.add(Flatten())
-    model.add(d)
-    model.add(Activation('tanh'))
+    #model.add(Flatten())
+    #model.add(d)
+    #model.add(Activation('tanh'))
     # =========      BOTTLENECK^-1   =====================
-    model.add(DependentDense(nb_filters * 14 * 14, d))
-    model.add(Activation('tanh'))
-    model.add(Reshape((nb_filters, 14, 14)))
+    #model.add(DependentDense(nb_filters * 14 * 14, d))
+    #model.add(Activation('tanh'))
+    #model.add(Reshape((nb_filters, 14, 14)))
     # =========      DECODER     =========================
-    model.add(DePool2D(mp, size=(nb_pool, nb_pool)))
+    #model.add(DePool2D(mp, size=(nb_pool, nb_pool)))
     model.add(Deconvolution2D(c, border_mode='same'))
     
-    model.add(Activation('tanh'))
+    #model.add(Activation('tanh'))
 
     return model
 

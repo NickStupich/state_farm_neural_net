@@ -9,12 +9,13 @@ def crop_img(input_img, location, size):
 	return  input_img[location[0]:location[0]+size[0], location[1]:location[1]+size[1]]
 
 class RandomImageSliceLayer(Layer):
-	def __init__(self, output_img_size, **kwargs):
+	def __init__(self, output_img_size, crop_step_size = 1, **kwargs):
 
 		print('RandomImageSliceLayer()) output_shape: %s' % str(output_img_size))
 		self.output_img_size = output_img_size
 		super(RandomImageSliceLayer, self).__init__(**kwargs)
 		self.rng = RandomStreams()
+		self.crop_step_size = crop_step_size
 
 	def build(self, input_shape):
 		print('RandomImageSliceLayer.build() input_shape: %s' % str(input_shape))
@@ -37,9 +38,7 @@ class RandomImageSliceLayer(Layer):
 			#print(offsets_np)
 			offsets = theano.shared(offsets_np)
 		elif 1:
-			step = 1
-			offsets_np = np.array([[x, y] for x in range(0, self.x_offset_range, step) for y in range(0, self.y_offset_range, step)])
-			#print(offsets_np)
+			offsets_np = np.array([[x, y] for x in range(0, self.x_offset_range, self.crop_step_size) for y in range(0, self.y_offset_range, self.crop_step_size)])
 			offsets = theano.shared(offsets_np)
 		else:
 			crop_regions = []
