@@ -1,3 +1,4 @@
+cache/*
 mnist_data/*
 *.npy
 *.pickle
