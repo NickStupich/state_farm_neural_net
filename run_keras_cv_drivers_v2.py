@@ -298,7 +298,11 @@ def create_model_v1(img_rows, img_cols, color_type=1):
     model.add(Dropout(0.5))
 
     model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
-    model.add(MaxPooling2D(pool_size=(8, 8)))
+    model.add(MaxPooling2D(pool_size=(4, 4)))
+    model.add(Dropout(0.5))
+
+    model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D(pool_size=(4, 4)))
     model.add(Dropout(0.5))
 
     model.add(Flatten())
