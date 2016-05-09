@@ -11,7 +11,6 @@ from keras_convautoencoder.autoencoder_layers import DependentDense, Deconvoluti
 from keras_convautoencoder.helpers import show_representations2
 
 from croppedInNet import load_all_subject_data, getInputsAndLabelsForSubjects
-from sklearn.preprocessing import StandardScaler
 
 # def load_data():
 #     (X_train, y_train), (X_test, y_test) = mnist.load_data()
@@ -100,10 +99,8 @@ if __name__ == '__main__':
         print(train_inputs.shape)
         print(train_labels.shape)
 
-        scaler = StandardScaler()
-        train_inputs = scaler.fit_transform(train_inputs)
-        test_inputs = scaler.transform(test_inputs)
-        np.random.shuffle(test_inputs)
+        train_inputs /= 255
+        test_inputs /= 255
 
         print(train_inputs.shape)
 
@@ -115,7 +112,7 @@ if __name__ == '__main__':
             model.summary()
             callbacks=[]
             # callbacks.append(EarlyStopping(patience=3))
-            model.fit(train_inputs, train_inputs, nb_epoch=200, batch_size=512,
+            model.fit(train_inputs, train_inputs, nb_epoch=50, batch_size=512,
                       callbacks=callbacks)
             model.save_weights('./conv.neuro', overwrite=True)
         else:

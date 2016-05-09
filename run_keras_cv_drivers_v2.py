@@ -20,9 +20,12 @@ warnings.filterwarnings("ignore")
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
 from keras.models import Sequential
+
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
+from keras.layers.noise import GaussianNoise
+
 from keras.optimizers import SGD
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -288,6 +291,9 @@ printedSummary=False
 def create_model_v1(img_rows, img_cols, color_type=1):
     global printedSummary
     model = Sequential()
+
+    # model.add(GaussianNoise(0.05, input_shape=(color_type, img_rows, img_cols)))
+
     model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal',
                             input_shape=(color_type, img_rows, img_cols)))
     model.add(MaxPooling2D(pool_size=(2, 2)))
@@ -298,12 +304,12 @@ def create_model_v1(img_rows, img_cols, color_type=1):
     model.add(Dropout(0.5))
 
     model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
-    model.add(MaxPooling2D(pool_size=(4, 4)))
+    model.add(MaxPooling2D(pool_size=(8, 8)))
     model.add(Dropout(0.5))
 
-    model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
-    model.add(MaxPooling2D(pool_size=(4, 4)))
-    model.add(Dropout(0.5))
+    # model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
+    # model.add(MaxPooling2D(pool_size=(4, 4)))
+    # model.add(Dropout(0.5))
 
     model.add(Flatten())
     
@@ -332,7 +338,7 @@ def run_cross_validation(nfolds=10):
     # input image dimensions
     img_rows, img_cols = 64, 64
     # color type: 1 - grey, 3 - rgb
-    color_type_global = 1
+    color_type_global = 3
     batch_size = 64
     nb_epoch = 50
     random_state = 51
@@ -340,6 +346,7 @@ def run_cross_validation(nfolds=10):
 
     train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global)
     test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
+    
     model = create_model_v1(img_rows, img_cols, color_type_global)
 
     yfull_train = dict()
@@ -348,6 +355,7 @@ def run_cross_validation(nfolds=10):
     num_fold = 0
     sum_score = 0
     for train_drivers, test_drivers in kf:
+
         unique_list_train = [unique_drivers[i] for i in train_drivers]
         X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
         unique_list_valid = [unique_drivers[i] for i in test_drivers]

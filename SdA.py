@@ -46,10 +46,6 @@ from logistic_sgd import LogisticRegression, load_data
 from mlp import HiddenLayer
 from dA import dA
 
-from sklearn.preprocessing import StandardScaler
-
-
-# start-snippet-1
 class SdA(object):
     """Stacked denoising auto-encoder class (SdA)
 
@@ -463,14 +459,7 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15, pretrain_lr=0.001, training
            ' ran for %.2fm' % ((end_time - start_time) / 60.)), file=sys.stderr)
 
 from croppedInNet import *
-def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=15, pretrain_lr=0.001, training_epochs=1000, batch_size=1):
-
-
-    # datasets = load_data(dataset)
-
-    # train_set_x, train_set_y = datasets[0]
-    # valid_set_x, valid_set_y = datasets[1]
-    # test_set_x, test_set_y = datasets[2]
+def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=2, pretrain_lr=0.001, training_epochs=1000, batch_size=1):
 
     subjects_data = load_all_subject_data()
     uniqueSubjects = subjects_data[3]
@@ -478,31 +467,34 @@ def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=15, pretrain_lr=0.00
 
     all_predictions = []
     all_labels = []
-    num_valid_subjects = 0
-    num_test_subjects = 0
-    #num_folds = int(np.ceil(len(uniqueSubjects)/(num_test_subjects + num_valid_subjects)))
+    num_valid_subjects = 2
+    num_test_subjects = 2
+
     fold = 0
     test_indices = list(map(lambda x: x % len(uniqueSubjects), range(fold*(num_test_subjects),(fold+1)*(num_test_subjects))))
     valid_indices = list(map(lambda x: x % len(uniqueSubjects), range((fold+1)*num_test_subjects, (fold+1)*num_test_subjects+num_valid_subjects)))
     train_indices = [x for x in range(len(uniqueSubjects)) if not (x in test_indices or x in valid_indices)]
             
     train_single_inputs, train_single_labels, train_single_filenames = getInputsAndLabelsForSubjects(subjects_data, train_indices)
-    # test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)
-    # valid_single_inputs, valid_single_labels, valid_single_filenames = getInputsAndLabelsForSubjects(subjects_data, valid_indices)
-                
-    scaler = StandardScaler()
-    train_single_inputs = scaler.fit_transform(train_single_inputs)
-    # test_single_inputs = scaler.transform(test_single_inputs)
-    # valid_single_inputs = scaler.transform(valid_single_inputs)
+    test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)
+    valid_single_inputs, valid_single_labels, tvalid_single_filenames = getInputsAndLabelsForSubjects(subjects_data, valid_indices)
+
+    print(train_single_inputs.dtype)
+    print(train_single_labels.dtype)
+
+    train_single_inputs /= 255
+    test_single_inputs /= 255
+    valid_single_inputs /= 255
+
+    datasets = ((theano.shared(train_single_inputs, borrow=True), theano.shared(dense_to_one_hot(train_single_labels), borrow=True)), 
+                (theano.shared(valid_single_inputs, borrow=True), theano.shared(dense_to_one_hot(valid_single_labels), borrow=True)), 
+                (theano.shared(test_single_inputs, borrow=True), theano.shared(dense_to_one_hot(test_single_labels), borrow=True))
+                )
 
     print(train_single_inputs[0])
     print(train_single_inputs.shape)
     train_set_x = theano.shared(train_single_inputs)
     train_set_y = theano.shared(dense_to_one_hot(train_single_labels))
-    # test_set_x = theano.shared(test_single_inputs)
-    # test_set_y = theano.shared(dense_to_one_hot(test_single_labels))
-    # valid_set_x = theano.shared(valid_single_inputs)
-    # valid_set_y = theano.shared(dense_to_one_hot(valid_single_labels))
 
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0]
