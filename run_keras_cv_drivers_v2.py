@@ -63,9 +63,29 @@ def get_im_cv2_mod(path, img_rows, img_cols, color_type=1):
         img = cv2.imread(path)
     # Reduce size
     rotate = random.uniform(-10, 10)
+    rotate_rad = np.abs(rotate * np.pi / 180.)  #only for cropping
     M = cv2.getRotationMatrix2D((img.shape[1]/2, img.shape[0]/2), rotate, 1)
-    img = cv2.warpAffine(img, M, (img.shape[1], img.shape[0]))
-    resized = cv2.resize(img, (img_cols, img_rows), cv2.INTER_LINEAR)
+    
+    warped = cv2.warpAffine(img, M, (img.shape[1], img.shape[0]))
+    crop_size = (img.shape[0] * (1-np.sin(rotate_rad)), img.shape[1] * (1-np.sin(rotate_rad)))#/2 since it rotates from middle
+    # print('rotate: %f   rad: %f' % (rotate, rotate_rad))
+    # print('crop: %f, %f' % crop_size)
+
+    cropped_diffs = (int((img.shape[0] - crop_size[0])/2), int((img.shape[1] - crop_size[1])/2))
+    # print('cropped diffs: %s' % str(cropped_diffs))
+
+    cropped = img[cropped_diffs[0]:img.shape[0] - cropped_diffs[0], cropped_diffs[1] : img.shape[1] - cropped_diffs[1]]
+    # print(img.shape)
+    # print(cropped.shape)
+    resized = cv2.resize(cropped, (img_rows, img_cols), cv2.INTER_LINEAR)
+    # print(resized.shape)
+    # exit(0)
+
+    # cv2.imshow("input", img)
+    # cv2.imshow("output", warped)
+    # cv2.imshow("cropped", cropped)
+    # cv2.imshow("resized", resized)
+    # cv2.waitKey(0)
     return resized
 
 

@@ -136,3 +136,34 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                         tile_col * (W + Ws): tile_col * (W + Ws) + W
                     ] = this_img * c
         return out_array
+
+
+
+def tile_raster_images_color(X, img_shape, tile_shape, tile_spacing=(0, 0),
+                       ):
+
+    img_shape = (img_shape[1], img_shape[0], img_shape[2])
+
+    assert len(tile_shape) == 2
+    assert len(tile_spacing) == 2
+
+    out_shape = [0, 0, 3]
+
+    out_shape[0] = (img_shape[0]+tile_spacing[0])*tile_shape[0] - tile_spacing[0]
+    out_shape[1] = (img_shape[1]+tile_spacing[1])*tile_shape[1] - tile_spacing[1]
+    H, W, colors = img_shape
+    Hs, Ws = tile_spacing
+
+    out_array = numpy.zeros(out_shape, dtype='uint8')
+
+    for tile_row in range(tile_shape[0]):
+        for tile_col in range(tile_shape[1]):
+            if tile_row * tile_shape[1] + tile_col < X.shape[0]:
+                this_x = X[tile_row * tile_shape[1] + tile_col]
+                this_img = scale_to_unit_interval(
+                    this_x.reshape(img_shape))
+                out_array[
+                    tile_row * (H + Hs): tile_row * (H + Hs) + H,
+                    tile_col * (W + Ws): tile_col * (W + Ws) + W
+                ] = this_img * 255
+    return out_array

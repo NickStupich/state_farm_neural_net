@@ -16,6 +16,7 @@ import random
 warnings.filterwarnings("ignore")
 
 import sys
+import os
 import timeit
 
 import theano
@@ -26,7 +27,7 @@ from logistic_sgd import LogisticRegression, load_data
 from mlp import HiddenLayer
 from dA import dA
 from SdA import SdA
-from utils import tile_raster_images
+from utils import tile_raster_images_color
 
 from sklearn.decomposition import PCA
 from sklearn.metrics import mean_squared_error
@@ -63,10 +64,18 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
                                             save_filters = True,
                                             layer = 0,
                                             img_shape = (64, 48, 1),
+                                            corruption_level = 0.2,
                                             ):
-    # input image dimensions
-    
-    img_rows, img_cols, color_type_global = img_shape
+
+
+    fn = '%s/encoded_train_layer%d_size%s_hidden%d.npy' % (output_folder, layer, str(img_shape), n_hidden)
+    if os.path.exists(fn) and False:
+        result = np.load(fn)
+        return result
+    else:
+        print('cached filename "%s" does not exist, re-running autoencoder' % fn)
+
+    img_cols, img_rows, color_type_global = img_shape
 
     random_state = 51
 
@@ -79,25 +88,20 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
     #all_input_data = all_input_data.reshape((all_input_data.shape[0], all_input_data.shape[1]*all_input_data.shape[2]*all_input_data.shape[3]))
     all_input_data = all_input_data.reshape((all_input_data.shape[0], -1), order='F')
     all_input_data = all_input_data[::5]    #TODO: not this...
-    print(all_input_data.shape)
-
-
-    if n_hidden < all_input_data.shape[1]:
+    
+    if n_hidden >= all_input_data.shape[1]:
+        print('output size > input size, pca would give perfect reconstruction')
+    elif 0: #print out a benchmark pca decomposition
+        print('calculating pca mean squared error...')
         pca = PCA(n_components = n_hidden)
         train_components = pca.fit_transform(all_input_data)
-        # print(pca.explained_variance_ratio_)
-        # print(train_components.shape)
         reconstruction = pca.inverse_transform(train_components)
-        # print(X_train_reconstruction.shape)
-        # print(X_train_flat.shape)
-        # print(X_train_flat[0,:20])
-        # print(X_train_reconstruction[0, :20])
         mse = mean_squared_error(all_input_data, reconstruction)
         print('pca mse (train): %s' % mse)
-    else:
-        print('output size > input size, pca would give perfect reconstruction')
+
 
     all_input_data_shared = theano.shared(all_input_data, borrow=True)
+    #all_input_data_shared = theano.tensor._shared(all_input_data, borrow=True)
 
 
 
@@ -106,10 +110,6 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
     index = T.lscalar()    # index to a [mini]batch
     x = T.matrix('x')  # the data is presented as rasterized images
     # end-snippet-2
-
-    if not os.path.isdir(output_folder):
-        os.makedirs(output_folder)
-    os.chdir(output_folder)
 
     print("Building model...")
     rng = np.random.RandomState(123)
@@ -124,7 +124,7 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
     )
 
     cost, updates = da.get_cost_updates(
-        corruption_level=0.1,
+        corruption_level=corruption_level,
         learning_rate=learning_rate
     )
 
@@ -137,11 +137,11 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
         }
     )
 
-    train_mse_da = theano.function(
-            inputs = [],
+    train_sum_squared_err_da = theano.function(
+            inputs = [index],
             outputs = da.training_mean_squared_reconstruction_error(),
             givens = {
-                x: all_input_data_shared
+                x: all_input_data_shared[index*batch_size:(index+1)*batch_size]
             }
         )
 
@@ -155,48 +155,53 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
     for epoch in range(epochs):
         # go through trainng set
         c = []
+        sum_squared_error = 0
         for batch_index in range(n_train_batches):
             c.append(train_da(batch_index))
+            sum_squared_error += train_sum_squared_err_da(batch_index)
 
-        print('Training epoch %d, cost: %f  mse: %f' % (epoch, np.mean(c), train_mse_da()))
+        print('Training epoch %d, cost: %f  mse: %f' % 
+            (epoch, np.mean(c), sum_squared_error / n_train_batches))
+        #print('Training epoch %d, cost: %f' % (epoch, np.mean(c)))
         if save_filters:
             image = Image.fromarray(
-                tile_raster_images(X=da.W.get_value(borrow=True).T,
-                                   img_shape=(img_cols, img_rows), tile_shape=(10, 10),
+                tile_raster_images_color(X=da.W.get_value(borrow=True).T,
+                                   img_shape=img_shape, tile_shape=(10, 10),
                                    tile_spacing=(1, 1)))
-            image.save('filters_corruption_%d.png' % epoch)
+            image.save('%s/filters_corruption_%d.png' % (output_folder, epoch))
 
 
     end_time = timeit.default_timer()
 
     training_time = (end_time - start_time)
 
-    print(('The no corruption code for file ' +
+    print(('The autoencoder in file ' +
            os.path.split(__file__)[1] +
-           ' ran for %.2fm' % ((training_time) / 60.)), file=sys.stderr)
+           ' trained for %.2fm' % ((training_time) / 60.)), file=sys.stderr)
 
     get_encoded_vals = theano.function(
         inputs = [x],
         outputs = da.get_hidden_values(x),
     )
+    print('made get_encoded_vals function')
+    encoded_input_data = np.zeros((train_data.shape[0], n_hidden))
+    reshaped_train_data = train_data.reshape((train_data.shape[0], -1), order='F')
+    for i in range(0, train_data.shape[0], batch_size):
+        encoded_input_data[i:i+batch_size] = get_encoded_vals(reshaped_train_data[i:i+batch_size])
 
-    #encoded_all_data = get_encoded_vals(all_input_data)
-    #print('got encoded training data:')
-    #print(encoded_training_data.shape)
-
-    fn = 'encoded_train_layer%d_size%s_hidden%d' % (layer, str(img_shape), n_hidden)
-    encoded_input_data = get_encoded_vals(train_data.reshape((train_data.shape[0], -1), order='F'))
     np.save(fn, encoded_input_data)
-
-    os.chdir('../')
 
     return encoded_input_data
 
 def create_logistic_model(input_length):
     global printedSummary
     model = Sequential()
+    model.add(Dropout(0.5, input_shape=(input_length,)))
 
-    model.add(Dense(10, input_shape=(input_length,)))
+    model.add(Dense(100))
+    model.add(Dropout(0.5))
+
+    model.add(Dense(10))
     model.add(Activation('softmax'))
 
     if not printedSummary:
@@ -209,33 +214,31 @@ def create_logistic_model(input_length):
 
 if __name__ == "__main__":
     output_folder = 'denoising_ae_preprocess'
-    img_shape = (64, 48, 1)
+    img_shape = (64, 48, 3)
+    n_hidden = 2000
 
-    if 0:
-        run_full_autoencoder_cross_validation(  batch_size=10, 
-                                                epochs = 50, 
-                                                learning_rate = 0.01,
-                                                output_folder = output_folder,
-                                                n_hidden = 500,
-                                                save_filters = True,
-                                                layer = 0,
-                                                img_shape = img_shape,
-                                            )   
+    train_data = run_full_autoencoder_cross_validation(  batch_size=10, 
+                                            epochs = 100, 
+                                            learning_rate = 0.01,
+                                            output_folder = output_folder,
+                                            n_hidden = n_hidden,
+                                            save_filters = True,
+                                            layer = 0,
+                                            img_shape = img_shape,
+                                        )   
 
 
     nfolds = 13
     layer = 0
-    n_hidden = 500
     nb_epoch = 100
     batch_size = 64
     random_state = 51
     fn = output_folder + '/' + 'encoded_train_layer%d_size%s_hidden%d.npy' % (layer, img_shape, n_hidden)
 
-    img_rows, img_cols, color_type_global = img_shape
+    img_cols, img_rows, color_type_global = img_shape
 
-    train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global, one_hot_label_encoding = True)
-    train_data = np.load(fn)
-
+    _, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global, one_hot_label_encoding = True)
+    
     kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
     num_fold = 0
     sum_score = 0

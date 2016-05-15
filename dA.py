@@ -175,6 +175,8 @@ class dA(object):
                 borrow=True
             )
 
+        print('Number of parameters to train: %d' % (n_visible*n_hidden + n_visible + n_hidden))
+
         self.W = W
         # b corresponds to the bias of the hidden
         self.b = bhid
