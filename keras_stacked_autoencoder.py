@@ -84,64 +84,119 @@ def load_all_input_data(img_shape, flatten = True, use_cache = 1):
 
 	return all_input_data
 
-def get_all_data_autoencoder(  batch_size=10, 
-                        epochs = 10, 
-                        output_folder = 'keras_stacked_autoencoder',
-                        n_hidden = 500,
-                        save_filters = True,
-                        layer = 0,
-                        img_shape = (64, 48, 3),
-                        corruption_level = 0.2,
-                        all_input_data = None,
-                        tie_decoder_weights = True,
-                        activation_type = ''
-                        ):
+class Autoencoder(object):
 
-	all_input_data = load_all_input_data(img_shape, use_cache = True)
+	def __init__(   self,
+                    output_folder = 'keras_stacked_autoencoder',
+                    input_shape = 64*48*3,
+                    n_hidden = 500,
+                    save_filters = True,
+                    corruption_level = 0.2,
+                    all_input_data = None,
+                    tie_decoder_weights = True,
+                    activation_type = 'sigmoid'
+                    ):
+
+		self.n_hidden = n_hidden
+
+		input_size_flat = np.prod(input_shape)
+
+		self.encoder_layers = []
+		model = Sequential()
+		model.add(Dropout(corruption_level, input_shape=(input_size_flat,)))
+		dense_in = Dense(n_hidden, activation=activation_type)
+		model.add(dense_in)
+
+		self.encoder_layers.append(dense_in)
+
+		if tie_decoder_weights:
+			decoder = DependentDense(input_size_flat, dense_in, activation=activation_type)
+		else:
+			decoder = Dense(input_size_flat, activation=activation_type)
+
+		model.add(decoder)
+
+		model.summary()
+		model.compile(RMSprop(), loss='mean_squared_error')
+
+		callbacks = []
+		if use_tensorflow: callbacks.append(TensorBoard(log_dir='/tmp/autoencoder'))
+
+		self.model = model
+		self.callbacks = callbacks
+
+		self.encoder_model = None
+
+	def train(self, 
+				input_data, 
+				print_pca_mse = True, 
+                epochs = 10,
+				batch_size=10, 
+				):
+
+		if self.n_hidden >= input_data.shape[1]:
+			print('output size > input size, pca would give perfect reconstruction')
+		elif print_pca_mse: #print out a benchmark pca decomposition
+			print('calculating pca mean squared error...')
+			pca = PCA(n_components = self.n_hidden)
+			train_components = pca.fit_transform(input_data)
+			reconstruction = pca.inverse_transform(train_components)
+			mse = mean_squared_error(input_data, reconstruction)
+			print('pca mse (train): %s' % mse)
 
 
-	if n_hidden >= all_input_data.shape[1]:
-		print('output size > input size, pca would give perfect reconstruction')
-	elif 1: #print out a benchmark pca decomposition
-		print('calculating pca mean squared error...')
-		pca = PCA(n_components = n_hidden)
-		train_components = pca.fit_transform(all_input_data)
-		reconstruction = pca.inverse_transform(train_components)
-		mse = mean_squared_error(all_input_data, reconstruction)
-		print('pca mse (train): %s' % mse)
+		print('input data shape: %s' % str(input_data.shape))
 
+		self.model.fit(input_data, input_data, 
+				nb_epoch=epochs, 
+				batch_size=batch_size,
+	          	callbacks=self.callbacks
+	          	)
+
+	def get_encoder_model(self):
+		if self.encoder_model is None:
+			self.encoder_model = Sequential()
+			for layer in self.encoder_layers:
+				self.encoder_model.add(layer)
+
+			self.encoder_model.summary()
+			self.encoder_model.compile(RMSprop(), loss='mean_squared_error') #shouldnt do any training on here
+
+			for i, layer in enumerate(self.encoder_layers):
+				weights = self.encoder_layers[i].get_weights()
+				if len(weights):
+					self.encoder_model.layers[i].set_weights(weights)
+
+		return self.encoder_model
+
+	def encode(self, input_data):
+		model = self.get_encoder_model()
+		result = model.predict(input_data)
+		return result
+
+if __name__ == "__main__":
+	
+	img_shape = (64, 48, 3)
+
+	all_input_data = load_all_input_data(img_shape, 
+										flatten=True, 
+										use_cache = True)
 
 	input_size = np.prod(all_input_data.shape[1:])
 
-	print('input data shape: %s' % str(all_input_data.shape))
+	autoencoder = Autoencoder()
+	autoencoder.train(all_input_data, epochs=20, print_pca_mse=False)
+	encoded_input_data = autoencoder.encode(all_input_data)
+	print('encoded data shape: %s' % str(encoded_input_data.shape))
 
-	model = Sequential()
-	model.add(Dropout(corruption_level, input_shape=(input_size,)))
-	dense_in = Dense(n_hidden)
-	model.add(dense_in)
+	encoder_model = autoencoder.get_encoder_model()
 
-	if tie_decoder_weights:
-		model.add(DependentDense(input_size, dense_in))
-	else:
-		model.add(Dense(input_size))
+	full_model = encoder_model
+	full_model.add(Dense(10))
 
-	model.summary()
-	model.compile(RMSprop(), loss='mean_squared_error')
-
-	callbacks = []
-	if use_tensorflow: callbacks.append(TensorBoard(log_dir='/tmp/autoencoder'))
-
-	model.fit(all_input_data, all_input_data, 
-			nb_epoch=epochs, 
-			batch_size=batch_size,
-          	callbacks=callbacks
-          	)
+	full_model.add(Activation('softmax'))
 
 
-	
-
-    
-    
-
-if __name__ == "__main__":
-	autoencoder = get_all_data_autoencoder()
+	print('compiling and summarizing full model')
+	full_model.compile(RMSprop(), loss='categorical_crossentropy')
+	full_model.summary()
