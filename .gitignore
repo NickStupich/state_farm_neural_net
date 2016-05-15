@@ -1,4 +1,6 @@
 *.png
+*.weights
+
 cache/*
 mnist_data/*
 *.npy

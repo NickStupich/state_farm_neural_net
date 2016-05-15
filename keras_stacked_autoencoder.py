@@ -98,6 +98,10 @@ class Autoencoder(object):
                     ):
 
 		self.n_hidden = n_hidden
+		self.corruption_level = corruption_level
+
+		self.optimizer = 'rmsprop'
+		self.unsupervised_loss = 'mean_squared_error'
 
 		input_size_flat = np.prod(input_shape)
 
@@ -117,7 +121,7 @@ class Autoencoder(object):
 		model.add(decoder)
 
 		model.summary()
-		model.compile(RMSprop(), loss='mean_squared_error')
+		model.compile(self.optimizer, loss=self.unsupervised_loss)
 
 		callbacks = []
 		if use_tensorflow: callbacks.append(TensorBoard(log_dir='/tmp/autoencoder'))
@@ -126,6 +130,19 @@ class Autoencoder(object):
 		self.callbacks = callbacks
 
 		self.encoder_model = None
+
+	def get_weights_filename(self):
+		fn = 'autoencoder_weights_hidden%s_corruption%s.weights' % (str(self.n_hidden), str(self.corruption_level))
+		return fn
+
+	def load_weights_from_file(self):
+		fn = self.get_weights_filename()
+		if os.path.exists(fn):
+			self.model.load_weights(fn)
+			self.model.compile(self.optimizer, loss=self.unsupervised_loss)
+			return True
+		else:
+			return False
 
 	def train(self, 
 				input_data, 
@@ -153,19 +170,22 @@ class Autoencoder(object):
 	          	callbacks=self.callbacks
 	          	)
 
-	def get_encoder_model(self):
+		fn = self.get_weights_filename()
+		self.model.save_weights(fn)
+
+	def get_encoder_model(self, print_summary = True):
 		if self.encoder_model is None:
 			self.encoder_model = Sequential()
 			for layer in self.encoder_layers:
 				self.encoder_model.add(layer)
 
-			self.encoder_model.summary()
-			self.encoder_model.compile(RMSprop(), loss='mean_squared_error') #shouldnt do any training on here
-
 			for i, layer in enumerate(self.encoder_layers):
 				weights = self.encoder_layers[i].get_weights()
 				if len(weights):
 					self.encoder_model.layers[i].set_weights(weights)
+
+			if print_summary: self.encoder_model.summary()
+			self.encoder_model.compile(self.optimizer, loss=self.unsupervised_loss) #shouldnt do any training on here
 
 		return self.encoder_model
 
@@ -178,16 +198,22 @@ if __name__ == "__main__":
 	
 	img_shape = (64, 48, 3)
 
-	all_input_data = load_all_input_data(img_shape, 
-										flatten=True, 
-										use_cache = True)
+	force_retrain_model = True
+	autoencoder = Autoencoder()	
+	if autoencoder.load_weights_from_file() and not force_retrain_model:
+		print('loaded autoencoder weights from file')
+	else:
+		print('Calculating autoencoder weights')
+		all_input_data = load_all_input_data(img_shape, 
+											flatten=True, 
+											use_cache = True)
+		input_size = np.prod(all_input_data.shape[1:])
+		autoencoder.train(all_input_data, epochs=200, print_pca_mse=True)
 
-	input_size = np.prod(all_input_data.shape[1:])
 
-	autoencoder = Autoencoder()
-	autoencoder.train(all_input_data, epochs=20, print_pca_mse=False)
-	encoded_input_data = autoencoder.encode(all_input_data)
-	print('encoded data shape: %s' % str(encoded_input_data.shape))
+
+	#encoded_input_data = autoencoder.encode(all_input_data)
+	#print('encoded data shape: %s' % str(encoded_input_data.shape))
 
 	encoder_model = autoencoder.get_encoder_model()
 
@@ -200,3 +226,4 @@ if __name__ == "__main__":
 	print('compiling and summarizing full model')
 	full_model.compile(RMSprop(), loss='categorical_crossentropy')
 	full_model.summary()
+
