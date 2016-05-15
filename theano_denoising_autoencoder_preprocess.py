@@ -65,11 +65,12 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
                                             layer = 0,
                                             img_shape = (64, 48, 1),
                                             corruption_level = 0.2,
+                                            all_input_data = None,
                                             ):
 
 
     fn = '%s/encoded_train_layer%d_size%s_hidden%d.npy' % (output_folder, layer, str(img_shape), n_hidden)
-    if os.path.exists(fn) and False:
+    if os.path.exists(fn):
         result = np.load(fn)
         return result
     else:
@@ -79,19 +80,21 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
 
     random_state = 51
 
-    train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global, one_hot_label_encoding = False)
-    test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
+    if all_input_data is None:
 
-    all_input_data = np.concatenate((train_data, test_data))
-    print(all_input_data.shape)
+        train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global, one_hot_label_encoding = False)
+        test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
 
-    #all_input_data = all_input_data.reshape((all_input_data.shape[0], all_input_data.shape[1]*all_input_data.shape[2]*all_input_data.shape[3]))
-    all_input_data = all_input_data.reshape((all_input_data.shape[0], -1), order='F')
-    all_input_data = all_input_data[::5]    #TODO: not this...
+        all_input_data = np.concatenate((train_data, test_data))
+        print(all_input_data.shape)
+
+        #all_input_data = all_input_data.reshape((all_input_data.shape[0], all_input_data.shape[1]*all_input_data.shape[2]*all_input_data.shape[3]))
+        all_input_data = all_input_data.reshape((all_input_data.shape[0], -1), order='F')
+        all_input_data = all_input_data[::5]    #TODO: not this...
     
     if n_hidden >= all_input_data.shape[1]:
         print('output size > input size, pca would give perfect reconstruction')
-    elif 0: #print out a benchmark pca decomposition
+    elif 1: #print out a benchmark pca decomposition
         print('calculating pca mean squared error...')
         pca = PCA(n_components = n_hidden)
         train_components = pca.fit_transform(all_input_data)
@@ -119,7 +122,7 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
         numpy_rng=rng,
         theano_rng=theano_rng,
         input=x,
-        n_visible=img_rows*img_cols*color_type_global,
+        n_visible=all_input_data.shape[1], #img_rows*img_cols*color_type_global,
         n_hidden=n_hidden
     )
 
@@ -184,7 +187,7 @@ def run_full_autoencoder_cross_validation(  batch_size=10,
         outputs = da.get_hidden_values(x),
     )
     print('made get_encoded_vals function')
-    encoded_input_data = np.zeros((train_data.shape[0], n_hidden))
+    encoded_input_data = np.zeros((train_data.shape[0], n_hidden), dtype='float32')
     reshaped_train_data = train_data.reshape((train_data.shape[0], -1), order='F')
     for i in range(0, train_data.shape[0], batch_size):
         encoded_input_data[i:i+batch_size] = get_encoded_vals(reshaped_train_data[i:i+batch_size])
@@ -215,7 +218,7 @@ def create_logistic_model(input_length):
 if __name__ == "__main__":
     output_folder = 'denoising_ae_preprocess'
     img_shape = (64, 48, 3)
-    n_hidden = 2000
+    n_hidden = 500
 
     train_data = run_full_autoencoder_cross_validation(  batch_size=10, 
                                             epochs = 100, 
@@ -226,6 +229,19 @@ if __name__ == "__main__":
                                             layer = 0,
                                             img_shape = img_shape,
                                         )   
+
+    #print('layer0 output type: %s   shape: %s' % (str(train_data_layer0.dtype), str(train_data_layer0.shape)))
+
+    # train_data = run_full_autoencoder_cross_validation(  batch_size=10, 
+    #                                     epochs = 100, 
+    #                                     learning_rate = 0.01,
+    #                                     output_folder = output_folder,
+    #                                     n_hidden = n_hidden,
+    #                                     save_filters = False,
+    #                                     layer = 1,
+    #                                     img_shape = img_shape,
+    #                                     all_input_data = train_data_layer0
+    #                                 )   
 
 
     nfolds = 13
@@ -264,12 +280,15 @@ if __name__ == "__main__":
         #if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
      
         callbacks = [
-            EarlyStopping(monitor='val_loss', patience=1, verbose=0),
+            EarlyStopping(monitor='val_loss', patience=10, verbose=0),
             ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
         ]
         model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
               shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
               callbacks=callbacks)
+
+        if os.path.isfile(kfold_weights_path):
+            model.load_weights(kfold_weights_path)
 
         predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
         score = log_loss(Y_valid, predictions_valid)
