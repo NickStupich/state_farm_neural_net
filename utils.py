@@ -51,7 +51,7 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
 
     """
 
-    assert len(img_shape) == 2
+    assert len(img_shape) in (2, 3)
     assert len(tile_shape) == 2
     assert len(tile_spacing) == 2
 

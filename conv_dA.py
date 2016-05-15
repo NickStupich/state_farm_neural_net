@@ -245,6 +245,11 @@ class dA(object):
     def get_hidden_values(self, input):
         """ Computes the values of the hidden layer """
         #return T.nnet.sigmoid(T.dot(input, self.W) + self.b)
+        conv_out = conv2d(input=input,
+            filters=self.W,
+            filter_shape=self.filter_shape,
+            input_shape
+            )
 
     def get_reconstructed_input(self, hidden):
         """Computes the reconstructed input given the values of the

@@ -23,7 +23,7 @@ def load_data():
 
 def build_model(nb_filters=1, nb_pool=2, nb_conv=3):
     model = models.Sequential()
-    d = Dense(30, activation='tanh', init='he_normal')
+    #d = Dense(30, activation='tanh', init='he_normal')
     #c = Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='same', input_shape=(1, 28, 28), activation="sigmoid")
     #mp = MaxPooling2D(pool_size=(nb_pool, nb_pool))
     # =========      ENCODER     ========================
@@ -33,12 +33,21 @@ def build_model(nb_filters=1, nb_pool=2, nb_conv=3):
     #model.add(Dropout(0.25))
     # =========      BOTTLENECK     ======================
     model.add(Flatten(input_shape=(1, 28, 28)))
-    model.add(d)
+    #model.add(d)
     #model.add(Activation('tanh'))
     # =========      BOTTLENECK^-1   =====================
-    model.add(Dense(nb_filters * 28 * 28, activation='tanh',  init='he_normal'))
+    #model.add(Dense(nb_filters * 28 * 28, activation='tanh',  init='he_normal'))
     #model.add(Activation('tanh'))
-    model.add(Reshape((nb_filters, 28, 28)))
+
+    model.add(Dense(200, activation='tanh', init='he_normal'))
+    model.add(Dense(30, activation='tanh', init='he_normal'))
+
+    model.add(Dense(200, activation='tanh', init='he_normal'))
+    model.add(Dense(28*28, activation='tanh', init='he_normal'))
+
+
+
+    model.add(Reshape((1, 28, 28)))
     # =========      DECODER     =========================
     #model.add(DePool2D(mp, size=(nb_pool, nb_pool)))
     #model.add(Deconvolution2D(c, border_mode='same', activation="sigmoid"))
@@ -50,7 +59,7 @@ def build_model(nb_filters=1, nb_pool=2, nb_conv=3):
 def build_model_original(nb_filters=32, nb_pool=2, nb_conv=3):
     model = models.Sequential()
     d = Dense(30)
-    c = Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='same', input_shape=(1, 28, 28))
+    c = Convolution2D(nb_filters, nb_conv, nb_conv, activation='tanh', border_mode='same', input_shape=(1, 28, 28))
     mp =MaxPooling2D(pool_size=(nb_pool, nb_pool))
     # =========      ENCODER     ========================
     model.add(c)
@@ -90,13 +99,13 @@ if __name__ == '__main__':
     print('pca mse (train): %s' % mse)
 
 
-    # model = build_model()
-    model = build_model_original()
+    model = build_model()
+    #model = build_model_original()
     if not False:
         model.compile(optimizer='rmsprop', loss='mean_squared_error')
         model.summary()
-        model.fit(X_train, X_train, nb_epoch=200, batch_size=512, validation_split=0.2,
-                  callbacks=[EarlyStopping(patience=20)])
+        model.fit(X_train, X_train, nb_epoch=2000, batch_size=512, validation_split=0.2,
+                  callbacks=[EarlyStopping(patience=50)])
         model.save_weights('./conv.neuro', overwrite=True)
     else:
         model.load_weights('./conv.neuro')

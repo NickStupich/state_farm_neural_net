@@ -45,6 +45,13 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from logistic_sgd import LogisticRegression, load_data
 from mlp import HiddenLayer
 from dA import dA
+from utils import tile_raster_images
+
+try:
+    import PIL.Image as Image
+except ImportError:
+    import Image
+
 
 class SdA(object):
     """Stacked denoising auto-encoder class (SdA)
@@ -459,7 +466,7 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15, pretrain_lr=0.001, training
            ' ran for %.2fm' % ((end_time - start_time) / 60.)), file=sys.stderr)
 
 from croppedInNet import *
-def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=2, pretrain_lr=0.001, training_epochs=1000, batch_size=1):
+def test_SdA_state_farm(finetune_lr=0.01, pretraining_epochs=5001, pretrain_lr=0.001, training_epochs=1000, batch_size=10):
 
     subjects_data = load_all_subject_data()
     uniqueSubjects = subjects_data[3]
@@ -479,25 +486,32 @@ def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=2, pretrain_lr=0.001
     test_single_inputs, test_single_labels, test_single_filenames = getInputsAndLabelsForSubjects(subjects_data, test_indices)
     valid_single_inputs, valid_single_labels, tvalid_single_filenames = getInputsAndLabelsForSubjects(subjects_data, valid_indices)
 
-    print(train_single_inputs.dtype)
-    print(train_single_labels.dtype)
+    print(train_single_inputs.shape)
+    print(train_single_labels.shape)
 
     train_single_inputs /= 255
     test_single_inputs /= 255
     valid_single_inputs /= 255
 
-    datasets = ((theano.shared(train_single_inputs, borrow=True), theano.shared(dense_to_one_hot(train_single_labels), borrow=True)), 
-                (theano.shared(valid_single_inputs, borrow=True), theano.shared(dense_to_one_hot(valid_single_labels), borrow=True)), 
-                (theano.shared(test_single_inputs, borrow=True), theano.shared(dense_to_one_hot(test_single_labels), borrow=True))
+    train_single_inputs = train_single_inputs.astype('float32')
+    valid_single_inputs = valid_single_inputs.astype('float32')
+    test_single_inputs = test_single_inputs.astype('float32')
+
+    train_single_labels = train_single_labels.astype('int32')
+    valid_single_labels = valid_single_labels.astype('int32')
+    test_single_labels = test_single_labels.astype('int32')
+
+    datasets = ((theano.shared(train_single_inputs, borrow=True), theano.shared(train_single_labels, borrow=True)), 
+                (theano.shared(valid_single_inputs, borrow=True), theano.shared(valid_single_labels, borrow=True)), 
+                (theano.shared(test_single_inputs, borrow=True), theano.shared(test_single_labels, borrow=True))
                 )
 
     print(train_single_inputs[0])
     print(train_single_inputs.shape)
-    train_set_x = theano.shared(train_single_inputs)
-    train_set_y = theano.shared(dense_to_one_hot(train_single_labels))
-
+    pre_train_set_x = theano.shared(train_single_inputs)
+    
     # compute number of minibatches for training, validation and testing
-    n_train_batches = train_set_x.get_value(borrow=True).shape[0]
+    n_train_batches = pre_train_set_x.get_value(borrow=True).shape[0]
     n_train_batches //= batch_size
 
     # numpy random generator
@@ -516,13 +530,13 @@ def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=2, pretrain_lr=0.001
     # PRETRAINING THE MODEL #
     #########################
     print('... getting the pretraining functions')
-    pretraining_fns = sda.pretraining_functions(train_set_x=train_set_x,
+    pretraining_fns = sda.pretraining_functions(train_set_x=pre_train_set_x,
                                                 batch_size=batch_size)
 
     print('... pre-training the model')
     start_time = timeit.default_timer()
     ## Pre-train layer-wise
-    corruption_levels = [.0]
+    corruption_levels = [0.1]
     for i in range(sda.n_layers):
         # go through pretraining epochs
         for epoch in range(pretraining_epochs):
@@ -533,6 +547,15 @@ def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=2, pretrain_lr=0.001
                          corruption=corruption_levels[i],
                          lr=pretrain_lr))
             print('Pre-training layer %i, epoch %d, cost %f' % (i, epoch, numpy.mean(c)))
+
+            if i == 0 and (epoch % 100 == 0) or (epoch < 100 and epoch % 10 == 0) or (epoch < 10):
+                image = Image.fromarray(
+                    tile_raster_images(X=sda.dA_layers[i].W.get_value(borrow=True).T,
+                                   img_shape=(48, 64), tile_shape=(10, 10),
+                                   tile_spacing=(1, 1)))
+
+                image.save('SdA_state_farm/filters_corruption%d_epoch%d.png' % (i, epoch))
+
 
     end_time = timeit.default_timer()
 
@@ -626,5 +649,5 @@ def test_SdA_state_farm(finetune_lr=0.1, pretraining_epochs=2, pretrain_lr=0.001
 
 
 if __name__ == '__main__':
-    # test_SdA()
+    #test_SdA()
     test_SdA_state_farm()

@@ -210,7 +210,7 @@ def save_useful_data(predictions_valid, valid_ids, model, info):
     copy2(cur_code, code_file)
 
 
-def read_and_normalize_train_data(img_rows, img_cols, color_type=1):
+def read_and_normalize_train_data(img_rows, img_cols, color_type=1, one_hot_label_encoding=True):
     cache_path = os.path.join('cache', 'train_r_' + str(img_rows) + '_c_' + str(img_cols) + '_t_' + str(color_type) + '_rotated.dat')
     if not os.path.isfile(cache_path) or use_cache == 0:
         train_data, train_target, train_id, driver_id, unique_drivers = load_train(img_rows, img_cols, color_type)
@@ -219,15 +219,17 @@ def read_and_normalize_train_data(img_rows, img_cols, color_type=1):
         print('Restore train from cache!')
         (train_data, train_target, train_id, driver_id, unique_drivers) = restore_data(cache_path)
 
-    train_data = np.array(train_data, dtype=np.uint8)
-    train_target = np.array(train_target, dtype=np.uint8)
+    train_data = np.array(train_data, dtype=np.int32)
+    train_target = np.array(train_target, dtype=np.int32)
 
     if color_type == 1:
         train_data = train_data.reshape(train_data.shape[0], 1, img_rows, img_cols)
     else:
         train_data = train_data.transpose((0, 3, 1, 2))
 
-    train_target = np_utils.to_categorical(train_target, 10)
+    if one_hot_label_encoding:
+        train_target = np_utils.to_categorical(train_target, 10)
+
     train_data = train_data.astype('float32')
     train_data /= 255
     print('Train shape:', train_data.shape)
@@ -294,27 +296,30 @@ def create_model_v1(img_rows, img_cols, color_type=1):
 
     # model.add(GaussianNoise(0.05, input_shape=(color_type, img_rows, img_cols)))
 
-    model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal',
-                            input_shape=(color_type, img_rows, img_cols)))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.5))
-
-    model.add(Convolution2D(64, 3, 3, border_mode='same', init='he_normal'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.5))
-
-    model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
-    model.add(MaxPooling2D(pool_size=(8, 8)))
-    model.add(Dropout(0.5))
-
-    # model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
-    # model.add(MaxPooling2D(pool_size=(4, 4)))
+    # model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal',
+    #                         input_shape=(color_type, img_rows, img_cols)))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
     # model.add(Dropout(0.5))
 
-    model.add(Flatten())
+    # model.add(Convolution2D(64, 3, 3, border_mode='same', init='he_normal'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Dropout(0.5))
+
+    # model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
+    # model.add(MaxPooling2D(pool_size=(8, 8)))
+    # model.add(Dropout(0.5))
+
+    # # model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
+    # # model.add(MaxPooling2D(pool_size=(4, 4)))
+    # # model.add(Dropout(0.5))
+
+    # model.add(Flatten())
     
     # model.add(Dense(50))
     # model.add(Dropout(0.5))
+
+
+    model.add(Flatten(input_shape=(color_type, img_rows, img_cols)))
 
     model.add(Dense(10))
     model.add(Activation('softmax'))
@@ -338,7 +343,7 @@ def run_cross_validation(nfolds=10):
     # input image dimensions
     img_rows, img_cols = 64, 64
     # color type: 1 - grey, 3 - rgb
-    color_type_global = 3
+    color_type_global = 1
     batch_size = 64
     nb_epoch = 50
     random_state = 51
@@ -347,14 +352,15 @@ def run_cross_validation(nfolds=10):
     train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global)
     test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
     
-    model = create_model_v1(img_rows, img_cols, color_type_global)
-
+    
     yfull_train = dict()
     yfull_test = []
     kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
     num_fold = 0
     sum_score = 0
     for train_drivers, test_drivers in kf:
+    
+        model = create_model_v1(img_rows, img_cols, color_type_global)
 
         unique_list_train = [unique_drivers[i] for i in train_drivers]
         X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
