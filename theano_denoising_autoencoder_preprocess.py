@@ -218,7 +218,7 @@ def create_logistic_model(input_length):
 if __name__ == "__main__":
     output_folder = 'denoising_ae_preprocess'
     img_shape = (64, 48, 3)
-    n_hidden = 500
+    n_hidden = 2000
 
     train_data = run_full_autoencoder_cross_validation(  batch_size=10, 
                                             epochs = 100, 

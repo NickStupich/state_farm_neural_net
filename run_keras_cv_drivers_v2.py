@@ -54,7 +54,6 @@ def get_im_cv2(path, img_rows, img_cols, color_type=1):
     resized = cv2.resize(img, (img_cols, img_rows), cv2.INTER_LINEAR)
     return resized
 
-
 def get_im_cv2_mod(path, img_rows, img_cols, color_type=1):
     # Load as grayscale
     if color_type == 1:
@@ -233,6 +232,7 @@ def save_useful_data(predictions_valid, valid_ids, model, info):
 def read_and_normalize_train_data(img_rows, img_cols, color_type=1, one_hot_label_encoding=True):
     cache_path = os.path.join('cache', 'train_r_' + str(img_rows) + '_c_' + str(img_cols) + '_t_' + str(color_type) + '_rotated.dat')
     if not os.path.isfile(cache_path) or use_cache == 0:
+        print('Train data cache file not found: %s' % cache_path)
         train_data, train_target, train_id, driver_id, unique_drivers = load_train(img_rows, img_cols, color_type)
         cache_data((train_data, train_target, train_id, driver_id, unique_drivers), cache_path)
     else:
