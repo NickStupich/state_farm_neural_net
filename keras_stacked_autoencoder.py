@@ -171,7 +171,7 @@ class Autoencoder(object):
 	          	)
 
 		fn = self.get_weights_filename()
-		self.model.save_weights(fn)
+		self.model.save_weights(fn, overwrite=True)
 
 	def get_encoder_model(self, print_summary = True):
 		if self.encoder_model is None:
@@ -198,7 +198,7 @@ if __name__ == "__main__":
 	
 	img_shape = (64, 48, 3)
 
-	force_retrain_model = True
+	force_retrain_model = False
 	autoencoder = Autoencoder()	
 	if autoencoder.load_weights_from_file() and not force_retrain_model:
 		print('loaded autoencoder weights from file')
