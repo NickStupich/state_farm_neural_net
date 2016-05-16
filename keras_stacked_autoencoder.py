@@ -78,7 +78,7 @@ def load_all_input_data(img_shape, flatten = True, use_cache = 1):
 			all_input_data = all_input_data.reshape((all_input_data.shape[0], -1), order='F')
 
 		#TODO: train on all data
-		all_input_data = all_input_data[::50]    
+		all_input_data = all_input_data[::5]    
 
 		np.save(input_data_cache_fn, all_input_data)
 
@@ -100,8 +100,10 @@ class Autoencoder(object):
 		self.n_hidden = n_hidden
 		self.corruption_level = corruption_level
 
-		self.optimizer = 'rmsprop'
+		#self.optimizer = SGD(0.01)
+		self.optimizer = RMSprop()
 		self.unsupervised_loss = 'mean_squared_error'
+		#self.unsupervised_loss = 'binary_crossentropy'
 
 		input_size_flat = np.prod(input_shape)
 
@@ -121,7 +123,7 @@ class Autoencoder(object):
 		model.add(decoder)
 
 		model.summary()
-		model.compile(self.optimizer, loss=self.unsupervised_loss)
+		model.compile(self.optimizer, loss=self.unsupervised_loss, metrics=['mean_squared_error', 'binary_crossentropy'])
 
 		callbacks = []
 		if use_tensorflow: callbacks.append(TensorBoard(log_dir='/tmp/autoencoder'))
@@ -173,8 +175,8 @@ class Autoencoder(object):
 		fn = self.get_weights_filename()
 		self.model.save_weights(fn, overwrite=True)
 
-	def get_encoder_model(self, print_summary = True):
-		if self.encoder_model is None:
+	def get_encoder_model(self, print_summary = True, force_new=False):
+		if self.encoder_model is None or force_new:
 			self.encoder_model = Sequential()
 			for layer in self.encoder_layers:
 				self.encoder_model.add(layer)
@@ -194,6 +196,32 @@ class Autoencoder(object):
 		result = model.predict(input_data)
 		return result
 
+def get_full_model(autoencoder, freeze_lower_layers=True):
+	encoder_model = autoencoder.get_encoder_model(force_new=True)
+
+	full_model = encoder_model
+	
+	if freeze_lower_layers:	#lock weights from pre-trained layers while bottom layer(s) train
+		for layer in full_model.layers:
+			layer.trainable_weights = []
+
+	if 0:
+		full_model.add(Dropout(0.5))
+		full_model.add(Dense(50, activation='sigmoid'))
+		full_model.add(Dropout(0.5))
+
+	full_model.add(Dense(10))
+
+	full_model.add(Activation('softmax'))
+
+	full_model.summary()
+	
+	full_model.compile(optimizer=Adam(lr=1e-3), loss='categorical_crossentropy')
+	#full_model.compile(optimizer='sgd', loss='categorical_crossentropy')
+
+	return full_model
+	
+
 if __name__ == "__main__":
 	
 	img_shape = (64, 48, 3)
@@ -212,18 +240,65 @@ if __name__ == "__main__":
 
 
 
-	#encoded_input_data = autoencoder.encode(all_input_data)
-	#print('encoded data shape: %s' % str(encoded_input_data.shape))
 
-	encoder_model = autoencoder.get_encoder_model()
+	
+	img_cols, img_rows, color_type_global = img_shape
+	nfolds = 13
+	layer = 0
+	nb_epoch = 100
+	batch_size = 64
+	random_state = 51
 
-	full_model = encoder_model
-	full_model.add(Dense(10))
+	img_cols, img_rows, color_type_global = img_shape
 
-	full_model.add(Activation('softmax'))
+	train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global, one_hot_label_encoding = True)
+	train_data = train_data.reshape((train_data.shape[0], -1), order='F')
 
+	kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
+	num_fold = 0
+	sum_score = 0
+	for train_drivers, test_drivers in kf:
 
-	print('compiling and summarizing full model')
-	full_model.compile(RMSprop(), loss='categorical_crossentropy')
-	full_model.summary()
+		unique_list_train = [unique_drivers[i] for i in train_drivers]
+		X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
+		unique_list_valid = [unique_drivers[i] for i in test_drivers]
+		X_valid, Y_valid, test_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
 
+		num_fold += 1
+		print('Start KFold number {} from {}'.format(num_fold, nfolds))
+		print('Split train: ', len(X_train), len(Y_train))
+		print('Split valid: ', len(X_valid), len(Y_valid))
+		print('Train drivers: ', unique_list_train)
+		print('Test drivers: ', unique_list_valid)
+
+		model = get_full_model(autoencoder, freeze_lower_layers=True)
+
+		kfold_weights_path = os.path.join('cache', 'weights_kfold_' + str(num_fold) + '.h5')
+		#if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
+
+		callbacks = [
+		    EarlyStopping(monitor='val_loss', patience=10, verbose=0),
+		    ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
+		]
+		model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
+		      shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
+		      callbacks=callbacks)
+
+		if os.path.isfile(kfold_weights_path):
+		    model.load_weights(kfold_weights_path)
+
+		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+		score = log_loss(Y_valid, predictions_valid)
+		print('Score log_loss: ', score)
+		sum_score += score*len(test_index)
+
+		# Store valid predictions
+		# for i in range(len(test_index)):
+		#     yfull_train[test_index[i]] = predictions_valid[i]
+
+		# # Store test predictions
+		# test_prediction = model.predict(test_data, batch_size=batch_size, verbose=1)
+		# yfull_test.append(test_prediction)
+
+	score = sum_score/len(train_data)
+	print("Log_loss train independent avg: ", score)
