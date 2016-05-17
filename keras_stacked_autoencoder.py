@@ -48,7 +48,7 @@ if 1:	#imports
 
 """
 THE PLAN:
-- get an autoencoder training
+- get an autoencoder training - done
 - make randomness consistent
 - plot filters, make sure reasonable
 - convert to class
@@ -59,10 +59,10 @@ THE PLAN:
 - stop decimating input data
 - add the random image slice layer
 """
-def load_all_input_data(img_shape, flatten = True, use_cache = 1):
+def load_all_input_data(img_shape, flatten = True, use_cache = 1, skip = 5):
 	img_cols, img_rows, color_type_global = img_shape
 
-	input_data_cache_fn = 'all_input_data.npy'
+	input_data_cache_fn = 'all_input_data_skip%d.npy' % skip
 
 	if os.path.exists(input_data_cache_fn) and use_cache:
 		all_input_data = np.load(input_data_cache_fn)
@@ -78,7 +78,8 @@ def load_all_input_data(img_shape, flatten = True, use_cache = 1):
 			all_input_data = all_input_data.reshape((all_input_data.shape[0], -1), order='F')
 
 		#TODO: train on all data
-		all_input_data = all_input_data[::5]    
+		if skip != 1:
+			all_input_data = all_input_data[::skip]    
 
 		np.save(input_data_cache_fn, all_input_data)
 
