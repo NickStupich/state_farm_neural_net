@@ -330,4 +330,4 @@ class DependentDense(Dense):
             self.set_weights(self.initial_weights)
             del self.initial_weights
 
-        #self.trainable_weights = [self.b]
+        self.trainable_weights = [self.b]

@@ -49,15 +49,16 @@ if 1:	#imports
 """
 THE PLAN:
 - get an autoencoder training - done
-- make randomness consistent
+- make randomness consistent - done
 - plot filters, make sure reasonable
 - convert to class
-	- save itself
-	- make able to produce a new sequential model using it's own internal (already learned) layers\
-- convert to multi-layer
+	- save itself - done
+	- make able to produce a new sequential model using it's own internal (already learned) layers - done
+- convert to multi-layer - going
+- try greedy-layer wise pre-training
 - convert to convnets
-- stop decimating input data
-- add the random image slice layer
+- stop decimating input data - just works with keras
+- add the random image slice layer?
 """
 def load_all_input_data(img_shape, flatten = True, use_cache = 1, skip = 5):
 	img_cols, img_rows, color_type_global = img_shape
@@ -90,16 +91,16 @@ class Autoencoder(object):
 	def __init__(   self,
                     output_folder = 'keras_stacked_autoencoder',
                     input_shape = 64*48*3,
-                    n_hidden = 500,
+                    hidden_layer_sizes = [1000, 500],
                     save_filters = True,
-                    corruption_level = 0.2,
+                    corruption_levels = [0.2, 0.2],
                     all_input_data = None,
                     tie_decoder_weights = True,
                     activation_type = 'sigmoid'
                     ):
 
-		self.n_hidden = n_hidden
-		self.corruption_level = corruption_level
+		self.hidden_layer_sizes = hidden_layer_sizes
+		self.corruption_levels = corruption_levels
 
 		#self.optimizer = SGD(0.01)
 		self.optimizer = RMSprop()
@@ -110,16 +111,34 @@ class Autoencoder(object):
 
 		self.encoder_layers = []
 		model = Sequential()
-		model.add(Dropout(corruption_level, input_shape=(input_size_flat,)))
-		dense_in = Dense(n_hidden, activation=activation_type)
-		model.add(dense_in)
+		
+		layer_input_size = input_size_flat
+		for i, n_hidden in enumerate(hidden_layer_sizes):
+			model.add(Dropout(corruption_levels[i], input_shape=(input_size_flat,)))
+			dense_in = Dense(n_hidden, activation=activation_type)
+			model.add(dense_in)
 
-		self.encoder_layers.append(dense_in)
+			layer_input_size = n_hidden
 
+			self.encoder_layers.append(dense_in)
+
+		#create a decoder layer for each encoder layer
+		for i, n_hidden in enumerate(reversed(hidden_layer_sizes[:-1])):
+			if tie_decoder_weights:
+				encoder_layer = self.encoder_layers[-(i+1)]
+				print('encoder layer: %s' % str(encoder_layer))
+				decoder = DependentDense(n_hidden, encoder_layer, activation=activation_type)
+			else:
+				decoder = Dense(n_hidden, activation=activation_type)
+
+			model.add(decoder)
+
+		#create the final top layer
 		if tie_decoder_weights:
-			decoder = DependentDense(input_size_flat, dense_in, activation=activation_type)
+			encoder_layer = self.encoder_layers[-i]
+			decoder = DependentDense(input_shape, encoder_layer, activation=activation_type)
 		else:
-			decoder = Dense(input_size_flat, activation=activation_type)
+			decoder = Dense(input_shape, activation=activation_type)
 
 		model.add(decoder)
 
@@ -135,7 +154,7 @@ class Autoencoder(object):
 		self.encoder_model = None
 
 	def get_weights_filename(self):
-		fn = 'autoencoder_weights_hidden%s_corruption%s.weights' % (str(self.n_hidden), str(self.corruption_level))
+		fn = 'autoencoder_weights_hidden%s_corruption%s.weights' % (str(self.hidden_layer_sizes), str(self.corruption_levels))
 		return fn
 
 	def load_weights_from_file(self):
@@ -154,11 +173,12 @@ class Autoencoder(object):
 				batch_size=10, 
 				):
 
-		if self.n_hidden >= input_data.shape[1]:
+		pca_dim = min(self.hidden_layer_sizes)
+		if pca_dim >= input_data.shape[1]:
 			print('output size > input size, pca would give perfect reconstruction')
 		elif print_pca_mse: #print out a benchmark pca decomposition
-			print('calculating pca mean squared error...')
-			pca = PCA(n_components = self.n_hidden)
+			print('calculating pca mean squared error...  pca dimension: %d' % pca_dim)
+			pca = PCA(n_components = pca_dim)
 			train_components = pca.fit_transform(input_data)
 			reconstruction = pca.inverse_transform(train_components)
 			mse = mean_squared_error(input_data, reconstruction)
@@ -217,7 +237,7 @@ def get_full_model(autoencoder, freeze_lower_layers=True):
 
 	full_model.summary()
 	
-	full_model.compile(optimizer=Adam(lr=1e-3), loss='categorical_crossentropy')
+	full_model.compile(optimizer=RMSprop(), loss='categorical_crossentropy')
 	#full_model.compile(optimizer='sgd', loss='categorical_crossentropy')
 
 	return full_model
@@ -229,7 +249,7 @@ if __name__ == "__main__":
 
 	force_retrain_model = False
 	autoencoder = Autoencoder()	
-	if autoencoder.load_weights_from_file() and not force_retrain_model:
+	if not force_retrain_model and autoencoder.load_weights_from_file():
 		print('loaded autoencoder weights from file')
 	else:
 		print('Calculating autoencoder weights')
@@ -237,7 +257,7 @@ if __name__ == "__main__":
 											flatten=True, 
 											use_cache = True)
 		input_size = np.prod(all_input_data.shape[1:])
-		autoencoder.train(all_input_data, epochs=200, print_pca_mse=True)
+		autoencoder.train(all_input_data, epochs=400, print_pca_mse=False)
 
 
 
