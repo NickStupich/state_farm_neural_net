@@ -4,44 +4,62 @@ from keras.datasets import mnist
 from keras.utils import np_utils
 import numpy as np
 
-def get_conv_autoencoder_model(input_img, corruption_level = 0.5, color_type=3, activation='linear'):	
+def get_encoder_layers(corruption_level = 0.5, activation='linear'):
+	layers = []
+
+	layers.append(Convolution2D(32, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	layers.append(MaxPooling2D((2, 2)))
+	
+	layers.append(Dropout(corruption_level))
+	layers.append(Convolution2D(64, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	layers.append(MaxPooling2D((2, 2)))
+	
+	layers.append(Dropout(corruption_level))
+	layers.append(Convolution2D(128, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	layers.append(MaxPooling2D((8, 8)))
+
+	return layers
+
+def get_decoder_layers(color_type, corruption_level = 0.5, activation='linear'):
+	layers = []
+
+	#TODO: first layer needed?
+	layers.append(Convolution2D(128, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	layers.append(UpSampling2D((8, 8)))
+	
+	layers.append(Convolution2D(64, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	layers.append(UpSampling2D((2, 2)))
+	
+	layers.append(Convolution2D(32, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	layers.append(UpSampling2D((2, 2)))
+	
+	layers.append(Convolution2D(color_type, 3, 3, activation='sigmoid', border_mode='same'))
+
+	return layers
+
+def get_supervised_layers():
+	layers = []
+
+	layers.append(Flatten())
+	layers.append(Dense(10))
+	layers.append(Activation("softmax"))
+
+	return layers
+
+def get_conv_autoencoder_model(input_img, color_type=3):	
 
 	x = input_img
 
-	#x = Dropout(corruption_level)(x)
-	x = Convolution2D(32, 3, 3, activation=activation, border_mode='same', init='he_normal')(x)
-	x = MaxPooling2D((2, 2))(x)
-	
+	for layer in get_encoder_layers():
+		x = layer(x)
 
-
-	x = Dropout(corruption_level)(x)
-	x = Convolution2D(64, 3, 3, activation=activation, border_mode='same', init='he_normal')(x)
-	x = MaxPooling2D((2, 2))(x)
-	
-	x = Dropout(corruption_level)(x)
-	x = Convolution2D(128, 3, 3, activation=activation, border_mode='same', init='he_normal')(x)
-	x = MaxPooling2D((8, 8))(x)
-
-	# x = Dropout(corruption_level)(x)
-	# x = Convolution2D(256, 3, 3, activation='relu', border_mode='same')(x)
-	# x = MaxPooling2D((4, 4), border_mode='same')(x)
-
-	# #here's the middle between encoder & decoder
 	encoded = x
 
-	# x = Convolution2D(256, 3, 3, activation='relu', border_mode='same')(x)
-	# x = UpSampling2D((4, 4))(x)	
+	for layer in get_decoder_layers(color_type):
+		x = layer(x)
 
-	x = Convolution2D(128, 3, 3, activation=activation, border_mode='same', init='he_normal')(x)
-	x = UpSampling2D((8, 8))(x)
-	
-	x = Convolution2D(64, 3, 3, activation=activation, border_mode='same', init='he_normal')(x)
-	x = UpSampling2D((2, 2))(x)
-	
-	x = Convolution2D(32, 3, 3, activation=activation, border_mode='same', init='he_normal')(x)
-	x = UpSampling2D((2, 2))(x)
-	
-	decoded = Convolution2D(color_type, 3, 3, activation='sigmoid', border_mode='same')(x)
+	decoded = x
+
 
 	autoencoder = Model(input_img, decoded)
 	autoencoder.summary()
@@ -92,18 +110,20 @@ def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weig
 
 		print('already have trained autoencoder in memory')
 
-	x = Flatten()(encoder)
-	
-	if 0:
-		x = Dropout(0.5)(x)
-		x = Dense(50, activation='sigmoid')(x)
-		x = Dropout(0.5)(x)
 
-	x = Dense(num_classes)(x)
-	x = Activation('softmax')(x)
+	x = input_img
+	
+	for i, layer in enumerate(get_encoder_layers()):
+		x = layer(x)		
+
+		if freeze_weights:
+			x.params = []
+			x.updates = []
+
+	for layer in get_supervised_layers():
+		x = layer(x)
 
 	classifier = Model(input_img, x)	
-
 
 	for trained_layer, new_layer, _ in zip(autoencoder.layers, classifier.layers, range(9)):
 		new_layer.set_weights(trained_layer.get_weights())
@@ -152,7 +172,7 @@ def test_state_farm(nfolds=13):
 	# color type: 1 - grey, 3 - rgb
 	color_type_global = 1
 	batch_size = 16
-	nb_epoch = 50
+	nb_epoch = 1
 	random_state = 51
 	restore_from_last_checkpoint = 0
 
