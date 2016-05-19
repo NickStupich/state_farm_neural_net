@@ -309,45 +309,68 @@ def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
     index = np.array(index)
     return data, target, index
 
-printedSummary=False
-def create_model_v1(img_rows, img_cols, color_type=1):
-    global printedSummary
-    model = Sequential()
+# printedSummary=False
+# def create_model_v1(img_rows, img_cols, color_type=1):
+#     global printedSummary
+#     model = Sequential()
 
-    # model.add(GaussianNoise(0.05, input_shape=(color_type, img_rows, img_cols)))
+#     # model.add(GaussianNoise(0.05, input_shape=(color_type, img_rows, img_cols)))
 
-    # model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal',
-    #                         input_shape=(color_type, img_rows, img_cols)))
-    # model.add(MaxPooling2D(pool_size=(2, 2)))
-    # model.add(Dropout(0.5))
+#     # model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal',
+#     #                         input_shape=(color_type, img_rows, img_cols)))
+#     # model.add(MaxPooling2D(pool_size=(2, 2)))
+#     # model.add(Dropout(0.5))
 
-    # model.add(Convolution2D(64, 3, 3, border_mode='same', init='he_normal'))
-    # model.add(MaxPooling2D(pool_size=(2, 2)))
-    # model.add(Dropout(0.5))
+#     # model.add(Convolution2D(64, 3, 3, border_mode='same', init='he_normal'))
+#     # model.add(MaxPooling2D(pool_size=(2, 2)))
+#     # model.add(Dropout(0.5))
 
-    # model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
-    # model.add(MaxPooling2D(pool_size=(8, 8)))
-    # model.add(Dropout(0.5))
+#     # model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
+#     # model.add(MaxPooling2D(pool_size=(8, 8)))
+#     # model.add(Dropout(0.5))
 
-    # # model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
-    # # model.add(MaxPooling2D(pool_size=(4, 4)))
-    # # model.add(Dropout(0.5))
+#     # # model.add(Convolution2D(256, 3, 3, border_mode='same', init='he_normal'))
+#     # # model.add(MaxPooling2D(pool_size=(4, 4)))
+#     # # model.add(Dropout(0.5))
 
-    # model.add(Flatten())
+#     # model.add(Flatten())
     
-    # model.add(Dense(50))
-    # model.add(Dropout(0.5))
+#     # model.add(Dense(50))
+#     # model.add(Dropout(0.5))
 
 
-    model.add(Flatten(input_shape=(color_type, img_rows, img_cols)))
+#     model.add(Flatten(input_shape=(color_type, img_rows, img_cols)))
 
+#     model.add(Dense(10))
+#     model.add(Activation('softmax'))
+
+#     if not printedSummary:
+#         model.summary()
+#         printedSummary = True
+
+#     model.compile(Adam(lr=1e-3), loss='categorical_crossentropy')
+#     return model
+
+def create_model_v1(img_rows, img_cols, color_type=1):
+    model = Sequential()
+    model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal',
+                            input_shape=(color_type, img_rows, img_cols)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+
+    model.add(Convolution2D(64, 3, 3, border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.5))
+
+    model.add(Convolution2D(128, 3, 3, border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D(pool_size=(8, 8)))
+    model.add(Dropout(0.5))
+
+    model.add(Flatten())
     model.add(Dense(10))
     model.add(Activation('softmax'))
 
-    if not printedSummary:
-        model.summary()
-        printedSummary = True
-
+    model.summary()
     model.compile(Adam(lr=1e-3), loss='categorical_crossentropy')
     return model
 
