@@ -1,4 +1,5 @@
 from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, UpSampling2D, Flatten, Dropout, Activation
+from keras.optimizers import *
 from keras.models import Model
 from keras.datasets import mnist
 from keras.utils import np_utils
@@ -39,8 +40,10 @@ def get_decoder_layers(color_type, corruption_level = 0.5, activation='linear'):
 
 def get_supervised_layers():
 	layers = []
-
 	layers.append(Flatten())
+	#layers.append(Dropout(0.5))
+	#layers.append(Dense(100))
+	layers.append(Dropout(0.5))
 	layers.append(Dense(10))
 	layers.append(Activation("softmax"))
 
@@ -53,8 +56,6 @@ def get_conv_autoencoder_model(input_img, color_type=3):
 	for layer in get_encoder_layers():
 		x = layer(x)
 
-	encoded = x
-
 	for layer in get_decoder_layers(color_type):
 		x = layer(x)
 
@@ -62,13 +63,15 @@ def get_conv_autoencoder_model(input_img, color_type=3):
 
 
 	autoencoder = Model(input_img, decoded)
-	autoencoder.summary()
-	return autoencoder, encoded
+	#autoencoder.summary()
+
+	#print('model json: : %s' % autoencoder.to_json())
+
+	return autoencoder
 
 global_autoencoder = None
-global_encoder = None
 global_input_img = None
-def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weights = True):
+def load_autoencoder(unlabeled_data, num_classes = 10):
 	global global_autoencoder
 	global global_encoder
 	global global_input_img
@@ -77,8 +80,8 @@ def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weig
 		shape = unlabeled_data.shape[1:]
 		input_img = Input(shape=shape)
 
-		print('have to train autoencoder')
-		autoencoder, encoder = get_conv_autoencoder_model(input_img, color_type=shape[0])
+		print('have to create autoencoder')
+		autoencoder = get_conv_autoencoder_model(input_img, color_type=shape[0])
 
 		autoencoder.compile(optimizer='rmsprop', 
 							loss='binary_crossentropy',
@@ -93,7 +96,7 @@ def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weig
 		else:
 			print('no weights file, pretraining classifier')
 			autoencoder.fit(unlabeled_data, unlabeled_data,
-		                nb_epoch=5,
+		                nb_epoch=50,
 		                batch_size=256,
 		                shuffle=True,
 		                )
@@ -101,14 +104,18 @@ def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weig
 			autoencoder.save_weights(weights_fn, overwrite=True)
 
 		global_autoencoder = autoencoder
-		global_encoder = encoder
 		global_input_img = input_img
 	else:
 		autoencoder = global_autoencoder
-		encoder = global_encoder
 		input_img = global_input_img
 
 		print('already have trained autoencoder in memory')
+
+	return autoencoder, input_img
+
+def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weights = True):
+
+	autoencoder, input_img = load_autoencoder(unlabeled_data, num_classes)
 
 
 	x = input_img
@@ -137,8 +144,8 @@ def get_pretrained_conv_classifier(unlabeled_data, num_classes = 10, freeze_weig
 
 		
 	classifier.summary()
-
-	optimizer = 'adadelta'
+	optimizer = SGD(lr=0.001)
+	#optimizer = 'adadelta'
 	#optimizer = Adam(lr=1e-3)
 	#optimizer = RMSprop()
 	classifier.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
@@ -163,18 +170,149 @@ def test_mnist():
 				validation_data=(x_test, np_utils.to_categorical(y_test))
 				)	
 
+def get_trained_model(unsupervised_data, X_train, Y_train, X_valid, Y_valid, num_fold, batch_size = 16, nb_epoch = 10):
+	restore_from_last_checkpoint = 0
+	model = get_pretrained_conv_classifier(unsupervised_data)		
+
+	kfold_weights_path = os.path.join('cache', 'weights_kfold_' + str(num_fold) + '.h5')
+	if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
+		callbacks = [
+		    EarlyStopping(monitor='val_loss', patience=1, verbose=0),
+		    ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
+		]
+		model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
+		      shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
+		      callbacks=callbacks)
+
+
+		print('weights sum (1st conv): ', np.sum(model.layers[1].get_weights()[0]))
+		print('weights sum (top dense): ', np.sum(model.layers[-2].get_weights()[0]))
+
+	if os.path.isfile(kfold_weights_path):
+	    model.load_weights(kfold_weights_path)
+
+def get_trained_model2(unsupervised_data, X_train, Y_train, X_valid, Y_valid, 
+					num_fold, 
+					batch_size = 16,
+					nb_epoch = 10,
+					restore_from_last_checkpoint = 0
+					):
+	
+	#model = get_pretrained_conv_classifier(unsupervised_data)		
+
+	autoencoder, input_img = load_autoencoder(unsupervised_data)
+	x = input_img
+	for layer in get_encoder_layers():
+		x = layer(x)	
+
+	encoder_model = Model(input_img, x)
+
+	for encoder_layer, autoencoder_layer in zip(encoder_model.layers, autoencoder.layers):
+		encoder_layer.set_weights(autoencoder_layer.get_weights())
+
+	#print('encoder model:'); encoder_model.summary()
+	
+	#optimizer = SGD(lr=0.001)
+	#optimizer = 'adadelta'
+	optimizer = Adam(lr=1e-3)
+	#optimizer = RMSprop()
+	encoder_model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+	encoded_X_train = encoder_model.predict(X_train)
+	encoded_X_valid = encoder_model.predict(X_valid)
+	print('got encoded X values for train and valid')
+	print(encoded_X_train.shape)
+
+	top_layer_input = Input(encoded_X_train.shape[1:])
+
+	x = top_layer_input
+	for layer in get_supervised_layers():
+		x = layer(x)
+
+	top_supervised_model = Model(top_layer_input, x)
+	#print('top supervised model summary: '); top_supervised_model.summary()
+	
+	top_supervised_model.compile(optimizer = optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+	kfold_weights_path = os.path.join('cache', 'top_supervised' + str(num_fold) + '.h5')
+	callbacks = [
+		    EarlyStopping(monitor='val_loss', patience=5, verbose=0),
+		    ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
+		]
+	top_supervised_model.fit(encoded_X_train, Y_train, batch_size = batch_size, nb_epoch = nb_epoch,
+							shuffle=True, verbose=1, validation_data = (encoded_X_valid, Y_valid),
+							callbacks = callbacks)
+
+	if os.path.isfile(kfold_weights_path):
+	    top_supervised_model.load_weights(kfold_weights_path)
+
+	print('top supervised training cost:')
+	print(top_supervised_model.evaluate(encoded_X_train, Y_train))
+
+	print('top supervised validation cost:')
+	print(top_supervised_model.evaluate(encoded_X_valid, Y_valid))
+
+
+
+	###Build up the complete model, and copy all the previously found weights
+	x = input_img
+	for layer in get_encoder_layers() + get_supervised_layers():
+		x = layer(x)
+
+	full_model = Model(input_img, x)
+
+	#top_supervised_model[1:] since we skip the input layer
+	for full_model_layer, trained_layer in zip(full_model.layers, encoder_model.layers + top_supervised_model.layers[1:]):
+		full_model_layer.set_weights(trained_layer.get_weights())
+		#print('copied weights from %s to %s' % (str(trained_layer), str(full_model_layer)))
+
+	#print('Full model: '); full_model.summary()
+
+	#fine_tune_optimizer = Adadelta(1E-4)
+	fine_tune_optimizer = Adam(lr=1e-3)
+	full_model.compile(optimizer = fine_tune_optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+	# print('full model training cost:')
+	# print(full_model.evaluate(X_train, Y_train))
+
+	# print('full model validation cost:')
+	# print(full_model.evaluate(X_valid, Y_valid))
+
+	kfold_weights_path = os.path.join('cache', 'weights_kfold_' + str(num_fold) + '.h5')
+	callbacks = [
+	    EarlyStopping(monitor='val_loss', patience=20, verbose=0),
+	    ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
+	]
+	full_model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=10,
+	      shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
+	      callbacks=callbacks)
+
+		# print('weights sum (1st conv): ', np.sum(full_model.layers[1].get_weights()[0]))
+		# print('weights sum (top dense): ', np.sum(full_model.layers[-2].get_weights()[0]))
+
+	if os.path.isfile(kfold_weights_path):
+	    full_model.load_weights(kfold_weights_path)
+
+
+	print('full model training cost:')
+	print(full_model.evaluate(X_train, Y_train))
+
+	print('full model validation cost:')
+	print(full_model.evaluate(X_valid, Y_valid))
+
+
+	return full_model
+
+
 from run_keras_cv_drivers_v2 import *	
 def test_state_farm(nfolds=13):
-
 
 	 # input image dimensions
 	img_rows, img_cols = 64, 64
 	# color type: 1 - grey, 3 - rgb
 	color_type_global = 1
 	batch_size = 16
-	nb_epoch = 1
+	nb_epoch = 100
 	random_state = 51
-	restore_from_last_checkpoint = 0
 
 	train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global)
 	test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
@@ -190,8 +328,6 @@ def test_state_farm(nfolds=13):
 	sum_score = 0
 	for train_drivers, test_drivers in kf:
 
-		model = get_pretrained_conv_classifier(all_input_data)		
-	
 		unique_list_train = [unique_drivers[i] for i in train_drivers]
 		X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
 		unique_list_valid = [unique_drivers[i] for i in test_drivers]
@@ -203,23 +339,15 @@ def test_state_farm(nfolds=13):
 		print('Split valid: ', len(X_valid), len(Y_valid))
 		print('Train drivers: ', unique_list_train)
 		print('Test drivers: ', unique_list_valid)
-
-		kfold_weights_path = os.path.join('cache', 'weights_kfold_' + str(num_fold) + '.h5')
-		if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
-			callbacks = [
-			    EarlyStopping(monitor='val_loss', patience=1, verbose=0),
-			    ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
-			]
-			model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
-			      shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
-			      callbacks=callbacks)
-
-
-			print('weights sum (1st conv): ', np.sum(model.layers[1].get_weights()[0]))
-			print('weights sum (top dense): ', np.sum(model.layers[-2].get_weights()[0]))
-
-		if os.path.isfile(kfold_weights_path):
-		    model.load_weights(kfold_weights_path)
+		
+		model = get_trained_model2(all_input_data, 
+									X_train, 
+									Y_train, 
+									X_valid, 
+									Y_valid, 
+									num_fold, 
+									batch_size, 
+									nb_epoch)
 
 		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
 		score = log_loss(Y_valid, predictions_valid)
