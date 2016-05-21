@@ -384,9 +384,9 @@ def get_validation_predictions(train_data, predictions_valid):
 
 def run_cross_validation(nfolds=10):
     # input image dimensions
-    img_rows, img_cols = 64, 64
+    img_rows, img_cols = 128, 96
     # color type: 1 - grey, 3 - rgb
-    color_type_global = 1
+    color_type_global = 3
     batch_size = 64
     nb_epoch = 50
     random_state = 51

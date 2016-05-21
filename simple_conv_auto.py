@@ -25,7 +25,7 @@ def get_decoder_layers(color_type, corruption_level = 0.5, activation='linear'):
 	layers = []
 
 	#TODO: first layer needed?
-	layers.append(Convolution2D(128, 3, 3, activation=activation, border_mode='same', init='he_normal'))
+	#layers.append(Convolution2D(128, 3, 3, activation=activation, border_mode='same', init='he_normal'))
 	layers.append(UpSampling2D((8, 8)))
 	
 	layers.append(Convolution2D(64, 3, 3, activation=activation, border_mode='same', init='he_normal'))
@@ -49,14 +49,14 @@ def get_supervised_layers():
 
 	return layers
 
-def get_conv_autoencoder_model(input_img, color_type=3):	
+def get_conv_autoencoder_model(input_img, color_type=3, corruption_level = 0.5, activation='linear'):	
 
 	x = input_img
 
-	for layer in get_encoder_layers():
+	for layer in get_encoder_layers(corruption_level, activation):
 		x = layer(x)
 
-	for layer in get_decoder_layers(color_type):
+	for layer in get_decoder_layers(color_type, corruption_level, activation):
 		x = layer(x)
 
 	decoded = x
@@ -71,7 +71,7 @@ def get_conv_autoencoder_model(input_img, color_type=3):
 
 global_autoencoder = None
 global_input_img = None
-def load_autoencoder(unlabeled_data, num_classes = 10):
+def load_autoencoder(unlabeled_data, num_classes = 10, corruption_level = 0.2, activation='relu'):
 	global global_autoencoder
 	global global_encoder
 	global global_input_img
@@ -81,13 +81,16 @@ def load_autoencoder(unlabeled_data, num_classes = 10):
 		input_img = Input(shape=shape)
 
 		print('have to create autoencoder')
-		autoencoder = get_conv_autoencoder_model(input_img, color_type=shape[0])
+		autoencoder = get_conv_autoencoder_model(input_img, 
+												color_type=shape[0], 
+												corruption_level = corruption_level, 
+												activation = activation)
 
 		autoencoder.compile(optimizer='rmsprop', 
 							loss='binary_crossentropy',
 							metrics=['mse'])
 
-		weights_fn = 'weights_conv_auto_shape%s' % (str(shape))
+		weights_fn = 'weights_conv_auto_shape%s_%s_corruption%s' % (str(shape), activation, str(corruption_level))
 		print('weights filename: %s' % weights_fn)
 
 		if os.path.exists(weights_fn):
@@ -95,10 +98,12 @@ def load_autoencoder(unlabeled_data, num_classes = 10):
 			autoencoder.load_weights(weights_fn)
 		else:
 			print('no weights file, pretraining classifier')
+			callbacks = [ModelCheckpoint('unsuper_pretrain_weights', verbose=0)]
 			autoencoder.fit(unlabeled_data, unlabeled_data,
 		                nb_epoch=50,
 		                batch_size=256,
 		                shuffle=True,
+				callbacks = callbacks
 		                )
 
 			autoencoder.save_weights(weights_fn, overwrite=True)
@@ -309,7 +314,7 @@ def test_state_farm(nfolds=13):
 	 # input image dimensions
 	img_rows, img_cols = 64, 64
 	# color type: 1 - grey, 3 - rgb
-	color_type_global = 1
+	color_type_global = 3
 	batch_size = 16
 	nb_epoch = 100
 	random_state = 51
