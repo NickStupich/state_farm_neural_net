@@ -5,10 +5,14 @@ from keras.datasets import mnist
 from keras.utils import np_utils
 import numpy as np
 import pylab
+import cv2
 
 from sklearn.metrics import mean_squared_error
 
 from run_keras_cv_drivers_v2 import *	
+
+kernel_size = 5
+pool_size = 4
 
 def get_simple_autoencoder(data = None, img_rows = 64, img_cols = 64, color_type = 3, hidden_depth = 32, layer = 0):
 	input_img = Input((color_type, img_rows, img_cols))
@@ -17,11 +21,11 @@ def get_simple_autoencoder(data = None, img_rows = 64, img_cols = 64, color_type
 	
 	x = Dropout(0.1)(x)
 
-	x = Convolution2D(hidden_depth, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
-	x = MaxPooling2D((2, 2))(x)
+	x = Convolution2D(hidden_depth, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
+	x = MaxPooling2D((pool_size, pool_size))(x)
 
-	x = UpSampling2D((2, 2))(x)
-	x = Convolution2D(color_type, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
+	x = UpSampling2D((pool_size, pool_size))(x)
+	x = Convolution2D(color_type, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
 
 	model = Model(input_img, x)
 
@@ -37,7 +41,7 @@ def get_simple_autoencoder(data = None, img_rows = 64, img_cols = 64, color_type
 		]
 		model.fit(data, data,
 					batch_size = 128,
-					nb_epoch=10,
+					nb_epoch=50,
 					shuffle=True,
 					verbose=1,
 					callbacks = callbacks)
@@ -62,8 +66,8 @@ if __name__ == "__main__":
 	input_img = Input((color_type, img_rows, img_cols))
 
 	x = input_img
-	x = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(input_img)
-	x = MaxPooling2D((2, 2))(x)
+	x = Convolution2D(32, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(input_img)
+	x = MaxPooling2D((pool_size, pool_size))(x)
 	encoder = Model(input_img, x)
 	encoder.summary()
 	encoder.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['mse'])
@@ -71,8 +75,8 @@ if __name__ == "__main__":
 
 	decoder_input = Input((32, img_rows/2, img_cols/2))
 	x = decoder_input
-	x = UpSampling2D((2, 2))(x)
-	x = Convolution2D(color_type, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
+	x = UpSampling2D((pool_size, pool_size))(x)
+	x = Convolution2D(color_type, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
 
 	decoder = Model(decoder_input, x)
 	decoder.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['mse'])
@@ -126,21 +130,21 @@ if __name__ == "__main__":
 
 	x = Dropout(0.1)(x)
 
-	x = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
-	x = MaxPooling2D((2, 2))(x)
+	x = Convolution2D(32, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
+	x = MaxPooling2D((pool_size, pool_size))(x)
 
 	x = Dropout(0.1)(x)	#needed? at least to maintain consistency with previous second autoencoder
 
-	x = Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
-	x = MaxPooling2D((2, 2))(x)
+	x = Convolution2D(64, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
+	x = MaxPooling2D((pool_size, pool_size))(x)
 
 	#"bottleneck"
 
-	x = UpSampling2D((2, 2))(x)
-	x = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
+	x = UpSampling2D((pool_size, pool_size))(x)
+	x = Convolution2D(32, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
 
-	x = UpSampling2D((2, 2))(x)
-	x = Convolution2D(color_type, 3, 3, activation='relu', border_mode='same', init='he_normal')(x)
+	x = UpSampling2D((pool_size, pool_size))(x)
+	x = Convolution2D(color_type, kernel_size, kernel_size, activation='relu', border_mode='same', init='he_normal')(x)
 
 
 	two_layer_model = Model(input_img, x)
@@ -168,7 +172,7 @@ if __name__ == "__main__":
 		]
 		two_layer_model.fit(train_data, train_data,
 					batch_size = 64,
-					nb_epoch=10,
+					nb_epoch=100,
 					shuffle=True,
 					verbose=1,
 					callbacks = callbacks)
@@ -185,12 +189,22 @@ if __name__ == "__main__":
 	two_layer_reconstruction = two_layer_model.predict(train_data)
 	print('done')
 
-	if 1:
-		in_img0 = train_data[0]
-		out_2layer_img0 = two_layer_reconstruction[0]
+	decimate_factor = int((pool_size**2) * 2)
+	cv_images = map(lambda img: np.transpose(img, (1, 2, 0)), all_input_data)
+	small_cv_images = map(lambda img: cv2.resize(img, (img_rows//decimate_factor, img_cols//decimate_factor)), cv_images)
+	big_cv_images = map(lambda img: cv2.resize(img, (img_rows, img_cols)), small_cv_images)
+	flattened_images = map(np.ndarray.flatten, big_cv_images)
+	mse = mean_squared_error(np.reshape(np.transpose(all_input_data, (0, 2, 3, 1)), (all_input_data.shape[0], -1)), np.array(list(flattened_images)))
+	print('mean squared interpolation error: %s' % str(mse))
 
-		pylab.subplot(211)
-		pylab.imshow(np.transpose(in_img0, (1, 2, 0)))
-		pylab.subplot(212)
-		pylab.imshow(np.transpose(out_2layer_img0, (1, 2, 0)))
-		pylab.show()
+	if 1:
+
+		for i in range(100):
+			in_img0 = train_data[i]
+			out_2layer_img0 = two_layer_reconstruction[i]
+
+			pylab.subplot(211)
+			pylab.imshow(np.transpose(in_img0, (1, 2, 0)))
+			pylab.subplot(212)
+			pylab.imshow(np.transpose(out_2layer_img0, (1, 2, 0)))
+			pylab.show()
