@@ -1,3 +1,5 @@
+*.hdf5
+*.h5
 *.png
 *.weights
 
