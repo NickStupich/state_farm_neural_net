@@ -374,6 +374,26 @@ def create_model_v1(img_rows, img_cols, color_type=1):
     model.compile(Adam(lr=1e-3), loss='categorical_crossentropy')
     return model
 
+def create_model_v2(img_rows, img_cols, color_type=3):
+	model = Sequential()
+
+	model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal', activation='relu', input_shape=(color_type, img_rows, img_cols)))
+	model.add(Convolution2D(32, 3, 3, border_mode='same', init='he_normal', activation='relu', subsample=(2, 2)))
+
+	for i in range(4):
+		num_features = 64 * (2**i)
+		model.add(Dropout(0.5))
+		model.add(Convolution2D(num_features, 3, 3, border_mode='same', init='he_normal', activation='relu'))
+		model.add(Convolution2D(num_features, 3, 3, border_mode='same', init='he_normal', subsample=(2,2), activation='relu'))
+
+	model.add(Flatten())
+	model.add(Dense(10))
+	model.add(Activation('softmax'))
+
+	model.summary()
+	model.compile(Adam(lr=2e-4), loss='categorical_crossentropy')
+	return model
+
 
 def get_validation_predictions(train_data, predictions_valid):
     pv = []
@@ -387,7 +407,7 @@ def run_cross_validation(nfolds=10):
     img_rows, img_cols = 128, 96
     # color type: 1 - grey, 3 - rgb
     color_type_global = 3
-    batch_size = 64
+    batch_size = 32
     nb_epoch = 50
     random_state = 51
     restore_from_last_checkpoint = 0
@@ -395,7 +415,10 @@ def run_cross_validation(nfolds=10):
     train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global)
     test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
     
-    
+    #model = create_model_v1(img_rows, img_cols, color_type_global)    
+    model = create_model_v2(img_rows, img_cols, color_type_global)
+
+
     yfull_train = dict()
     yfull_test = []
     kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
@@ -403,7 +426,7 @@ def run_cross_validation(nfolds=10):
     sum_score = 0
     for train_drivers, test_drivers in kf:
     
-        model = create_model_v1(img_rows, img_cols, color_type_global)
+    
 
         unique_list_train = [unique_drivers[i] for i in train_drivers]
         X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
@@ -420,7 +443,7 @@ def run_cross_validation(nfolds=10):
         kfold_weights_path = os.path.join('cache', 'weights_kfold_' + str(num_fold) + '.h5')
         if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
             callbacks = [
-                EarlyStopping(monitor='val_loss', patience=1, verbose=0),
+                EarlyStopping(monitor='val_loss', patience=3, verbose=0),
                 ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0),
             ]
             model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
