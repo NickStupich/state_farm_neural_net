@@ -176,7 +176,7 @@ def create_submission(predictions, test_id, info):
 
 
 def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                              color_type=1):
+                                              color_type=1, shuffle=False):
 
     cache_path = os.path.join('cache', 'train_r_' + str(img_rows) +
                               '_c_' + str(img_cols) + '_t_' +
@@ -207,9 +207,11 @@ def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
     for c in range(3):
         train_data[:, c, :, :] = train_data[:, c, :, :] - mean_pixel[c]
     # train_data /= 255
-    perm = permutation(len(train_target))
-    train_data = train_data[perm]
-    train_target = train_target[perm]
+    if shuffle:
+        perm = permutation(len(train_target))
+        train_data = train_data[perm]
+        train_target = train_target[perm]
+        
     print('Train shape:', train_data.shape)
     print(train_data.shape[0], 'train samples')
     return train_data, train_target, driver_id, unique_drivers

@@ -197,8 +197,9 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 		encoder = None
 	
 	encoded_shape = encoded_train_data.shape
-	print('encoded shape: %s' % str(encoded_shape))
-
+	print('train encoded shape: %s' % str(encoded_train_data.shape))
+	print('test encoded shape: %s' % str(encoded_test_data.shape))
+	
 	train_data = None
 	
 
@@ -206,7 +207,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	if not os.path.exists(weights_folder): os.mkdir(weights_folder)
 
 	if retrain_single_model:
-		model = model_build_func(encoded_shape)
+		model = model_build_func(encoded_shape[1:])
 
 	yfull_train = dict()
 	yfull_test = []
