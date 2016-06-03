@@ -10,7 +10,7 @@ import os
 
 from sklearn.metrics import mean_squared_error
 from run_keras_cv_drivers_v2 import *	
-
+from pretrained_vgg16 import vgg_std16_model
 
 class ConvLayerConfig(object):
 	def __init__(self, input_num_filters, output_num_filters, conv_size, stride = 1, activation='relu', dropout_rate = 0.1):
@@ -205,6 +205,7 @@ def create_run_keras_skip_first(encoded_shape):
 
 	model.compile(Adam(lr=1e-3), loss='categorical_crossentropy')
 	return model
+
 
 def cross_validation_wth_encoder_no_finetune(encoder, 
 											img_shape, 
