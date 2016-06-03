@@ -151,6 +151,8 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 		print('encoded data filename: %s' % test_fn)
 		if os.path.exists(test_fn):
 			encoded_test_data, test_id = pickle.load(open(test_fn, 'rb'))
+			print('encoded test data shape: %s' % str(encoded_test_data.shape))
+			print('test id length: %s' % len(test_id))
 		else:
 			print('getting test data encoding')
 
@@ -299,7 +301,7 @@ def main():
 	model_builder = create_mlp_model
 
 	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=2, 
+									nfolds=13, 
 									do_test_predictions = True,
 									folder_name=folder_name, 
 									model_build_func = model_builder,
