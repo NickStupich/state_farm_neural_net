@@ -451,7 +451,7 @@ def test_model_and_submit(start=1, end=1, modelStr=''):
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(2, 20, 0.15, '_vgg_16_2x20')
+    run_cross_validation(2, 7, 0.15, '_vgg_16_2x20')
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)

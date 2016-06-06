@@ -7,12 +7,16 @@ import numpy as np
 import pylab
 import cv2
 import os
+
 from keras.callbacks import EarlyStopping, ModelCheckpoint	
+from keras.regularizers import l2
+
 from keras.optimizers import *
 from sklearn.metrics import mean_squared_error, log_loss
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 # from run_keras_cv_drivers_v2 import *	
 from pretrained_vgg16 import *
-import pickle
 
 
 printedSummary = False
@@ -20,21 +24,30 @@ def create_logistic_model(encoded_shape):
     global printedSummary
     model = Sequential()
     #model.add(Flatten(input_shape = (encoded_shape)))
-
-    model.add(Dense(10, input_shape = (encoded_shape)))
+    model.add(Dropout(0.5, input_shape = (encoded_shape)))
+    model.add(Dense(10, input_shape = (encoded_shape), init='he_normal')
+    # model.add(Dense(10, input_shape = (encoded_shape), init='he_normal', W_regularizer = l2(.01)))
     model.add(Activation('softmax'))
 
     if not printedSummary:
         model.summary()
         printedSummary = True
 
-    #optimizer = SGD(lr=1e-2, momentum = 0.9, decay = 0.0)
+    optimizer = SGD(lr=1e-5, momentum = 0.9, decay = 0.0)
     #optimizer = RMSprop()
-    optimizer = Adam(lr=4e-1)
-    #optimizer = Adadelta()
+    # optimizer = Adam(lr=1e-4)
+    # optimizer = Adadelta(lr=1e-4)
     print('using optimizer: %s' % str(optimizer))
     model.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return model
+
+def create_sklearn_logreg(encoded_shape):
+	model = LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
+	return model	
+
+def create_sklearn_svm(encoded_shape):
+	model = SVC(C=1.0, kernel='rbf', degree=3)
+	return model
 
 def create_mlp_model(encoded_shape, layers = [100]):
     global printedSummary
@@ -55,12 +68,25 @@ def create_mlp_model(encoded_shape, layers = [100]):
         model.summary()
         printedSummary = True
 
-    model.compile(Adam(lr=1e-2), loss='categorical_crossentropy')
+
+    #optimizer = SGD(lr=1e-1, momentum = 0.9, decay = 0.0)
+    #optimizer = RMSprop()
+    #optimizer = Adam(lr=4e-1)
+    optimizer = Adadelta(lr=1e0)
+    print('using optimizer: %s' % str(optimizer))
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return model
 
 def create_vgg16_dense_model(encoded_shape):
 	#plan is to train all the dense layers at the top of vgg16, keeping convs constant
 	pass
+
+def categorical_to_dense(labels):
+	result = np.zeros((len(labels)), dtype='int8')
+	for i, label in enumerate(labels):
+		result[i] = np.argmax(label)
+
+	return result
 
 def get_trained_vgg16_model(img_rows, img_cols, color_type):
     model = Sequential()
@@ -129,34 +155,100 @@ def vgg_std16_encoder(img_rows, img_cols, color_type=1, include_connected_layers
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
+def vgg_std16_encoder2(img_rows, img_cols, color_type=1, include_connected_layers = True):
+    
+    model_weights = get_trained_vgg16_model(img_rows, img_cols, color_type)
+
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=(color_type,img_rows, img_cols)))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Flatten())
+    if include_connected_layers:
+        model.add(Dense(4096, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(4096, activation='relu'))
+
+    for layer, layer_weights in zip(model.layers, model_weights.layers):
+        layer.set_weights(layer_weights.get_weights())
+    
+    model.summary()
+
+    # Learning rate is changed to 0.001
+    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
 def cross_validation_wth_encoder_no_finetune(img_shape, 
 											nfolds=13, 
 											do_test_predictions = False, 
 											folder_name='folder_name', 
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
-	nb_epoch = 2000
+	nb_epoch = 50
 	batch_size = 128
 	random_state = 51
 	restore_from_last_checkpoint = 0
 	img_rows, img_cols, color_type = img_shape
 
 	#vgg16 includes dense layers?
-	include_connected = True
+	include_connected = False
+
+	#encoder = vgg_std16_encoder2(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
 
 
 	if do_test_predictions:
 
-		test_fn = folder_name + '/vgg_encoded_test_connected-%s.pickle' % include_connected
+		test_fn = folder_name + '/vgg_encoded_test_connected-%s.npy' % include_connected
 		print('encoded data filename: %s' % test_fn)
 		if os.path.exists(test_fn):
-			encoded_test_data, test_id = pickle.load(open(test_fn, 'rb'))
+			cache_path = os.path.join('cache', 'test_r_' + str(img_rows) +
+					'_c_' + str(img_cols) + '_t_' +
+					str(color_type) + '.dat')
+			_, test_id = restore_data(cache_path)
+
+
+			encoded_test_data = np.load(open(test_fn, 'rb'))
+			
 			print('encoded test data shape: %s' % str(encoded_test_data.shape))
 			print('test id length: %s' % len(test_id))
 		else:
 			print('getting test data encoding')
 
-			encoder = vgg_std16_encoder(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
+			encoder = vgg_std16_encoder2(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
 
 			splits = 10
 			n = 79726
@@ -170,14 +262,14 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 				split_test_data, split_ids = read_and_normalize_test_data(*img_shape, index_range = index_range)
 				test_id += split_ids
 
-				split_encoded = encoder.predict(split_test_data, batch_size = 8, verbose=True)
+				split_encoded = encoder.predict(split_test_data, batch_size = 2, verbose=True)
 				all_encoded_splits.append(split_encoded)
 
 			encoded_test_data = np.concatenate(all_encoded_splits)
 			print('encoded test data shape: %s' % str(encoded_test_data.shape))
 
 			#encoded_test_data = encoder.predict(test_data, batch_size = 8, verbose=True)
-			pickle.dump((encoded_test_data, test_id), open(test_fn, 'wb'))
+			np.save(test_fn, encoded_test_data)
 
 			encoder = None
 
@@ -191,7 +283,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 		encoded_train_data = np.load(fn)
 	else:
 		print('using vgg16 to encode data, then save to file')
-		encoder = vgg_std16_encoder(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
+		encoder = vgg_std16_encoder2(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
 
 		batch = 8 if include_connected else 16
 		encoded_train_data = encoder.predict(train_data, batch_size = batch, verbose=True)
@@ -200,7 +292,8 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	
 	encoded_shape = encoded_train_data.shape
 	print('train encoded shape: %s' % str(encoded_train_data.shape))
-	print('test encoded shape: %s' % str(encoded_test_data.shape))
+
+	if do_test_predictions: print('test encoded shape: %s' % str(encoded_test_data.shape))
 	
 	train_data = None
 	
@@ -233,19 +326,39 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 		print('Train drivers: ', unique_list_train)
 		print('Test drivers: ', unique_list_valid)
 
-		kfold_weights_path = os.path.join(weights_folder, 'weights_kfold_' + str(num_fold) + '.h5')
-		if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
-			callbacks = []
-			callbacks.append(EarlyStopping(monitor='val_loss', patience=50, verbose=0))
-			callbacks.append(ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0))
+		if isinstance(model, Sequential):
+			kfold_weights_path = os.path.join(weights_folder, 'weights_kfold_' + str(num_fold) + '.h5')
+			if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
+				callbacks = []
+				callbacks.append(EarlyStopping(monitor='val_loss', patience=1000, verbose=0))
+				callbacks.append(ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0))
 			
 			model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
 				shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
 				callbacks=callbacks)
-		if os.path.isfile(kfold_weights_path):
-		    model.load_weights(kfold_weights_path)
+	
+			if os.path.isfile(kfold_weights_path):
+			    model.load_weights(kfold_weights_path)
 
-		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+
+			predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+
+			# Store test predictions
+			if do_test_predictions:
+				test_prediction = model.predict(encoded_test_data, batch_size=batch_size, verbose=1)
+				yfull_test.append(test_prediction)
+
+		else:
+			print('fitting sklearn model...')
+			model.fit(X_train, categorical_to_dense(Y_train))
+			print('done fitting')
+			predictions_valid = model.predict_proba(X_valid)
+
+			# Store test predictions
+			if do_test_predictions:
+				test_prediction = model.predict(encoded_test_data)
+				yfull_test.append(test_prediction)
+
 		score = log_loss(Y_valid, predictions_valid)
 		print('Score log_loss: ', score)
 		sum_score += score*len(test_index)
@@ -254,10 +367,6 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 		for i in range(len(test_index)):
 			yfull_train[test_index[i]] = predictions_valid[i]
 
-		# Store test predictions
-		if do_test_predictions:
-			test_prediction = model.predict(encoded_test_data, batch_size=batch_size, verbose=1)
-			yfull_test.append(test_prediction)
 
 	score = sum_score/len(encoded_train_data)
 	print("Log_loss train independent avg: ", score)
@@ -298,12 +407,14 @@ def main():
 	# print('got encoder')
 
 
-	#model_builder = create_logistic_model
-	model_builder = create_mlp_model
+	model_builder = create_logistic_model
+	# model_builder = create_mlp_model
+	# model_builder = create_sklearn_logreg
+	# model_builder = create_sklearn_svm
 
 	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=13, 
-									do_test_predictions = True,
+									nfolds=2, 
+									do_test_predictions = False,
 									folder_name=folder_name, 
 									model_build_func = model_builder,
 									retrain_single_model = False)
