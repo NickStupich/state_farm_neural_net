@@ -25,7 +25,7 @@ def create_logistic_model(encoded_shape):
     model = Sequential()
     #model.add(Flatten(input_shape = (encoded_shape)))
     model.add(Dropout(0.5, input_shape = (encoded_shape)))
-    model.add(Dense(10, input_shape = (encoded_shape), init='he_normal')
+    model.add(Dense(10, input_shape = (encoded_shape), init='he_normal'))
     # model.add(Dense(10, input_shape = (encoded_shape), init='he_normal', W_regularizer = l2(.01)))
     model.add(Activation('softmax'))
 
@@ -413,11 +413,11 @@ def main():
 	# model_builder = create_sklearn_svm
 
 	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=2, 
-									do_test_predictions = False,
+									nfolds=26, 
+									do_test_predictions = True,
 									folder_name=folder_name, 
 									model_build_func = model_builder,
-									retrain_single_model = False)
+									retrain_single_model = True)
 
 if __name__ == "__main__":
 	main()
