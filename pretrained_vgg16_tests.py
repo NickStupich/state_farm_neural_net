@@ -7,6 +7,7 @@ import numpy as np
 import pylab
 import cv2
 import os
+import h5py
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint	
 from keras.regularizers import l2
@@ -46,10 +47,10 @@ def create_sklearn_logreg(encoded_shape):
 	return model	
 
 def create_sklearn_svm(encoded_shape):
-	model = SVC(C=1.0, kernel='rbf', degree=3)
+	model = SVC(C=1.0e-6, kernel='rbf', degree=3, verbose=True)
 	return model
 
-def create_mlp_model(encoded_shape, layers = [100]):
+def create_mlp_model(encoded_shape, layers = [500]):
     global printedSummary
     model = Sequential()
     #model.add(Flatten(input_shape = (encoded_shape)))
@@ -69,17 +70,165 @@ def create_mlp_model(encoded_shape, layers = [100]):
         printedSummary = True
 
 
-    #optimizer = SGD(lr=1e-1, momentum = 0.9, decay = 0.0)
+    optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
     #optimizer = RMSprop()
     #optimizer = Adam(lr=4e-1)
-    optimizer = Adadelta(lr=1e0)
+    #optimizer = Adadelta(lr=1e0)
     print('using optimizer: %s' % str(optimizer))
     model.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return model
 
 def create_vgg16_dense_model(encoded_shape):
-	#plan is to train all the dense layers at the top of vgg16, keeping convs constant
-	pass
+
+
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=(3, 224, 224)))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Flatten())
+    model.add(Dense(4096, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(4096, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1000, activation='softmax'))
+
+
+    model.load_weights('vgg16_weights.h5')
+
+
+    result = Sequential()
+    result.add(Dense(4096, activation='relu', input_shape=encoded_shape))
+    result.add(Dropout(0.5))
+    result.add(Dense(4096, activation='relu'))
+    result.add(Dropout(0.5))
+    result.add(Dense(10, activation='softmax'))
+
+    result.summary()
+
+    result.layers[-3].set_weights(model.layers[-3].get_weights())
+    result.layers[-5].set_weights(model.layers[-5].get_weights())
+
+
+
+    optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
+    #optimizer = RMSprop()
+    #optimizer = Adam(lr=4e-1)
+    #optimizer = Adadelta(lr=1e0)
+    result.compile(optimizer=optimizer, loss='categorical_crossentropy')
+    return result
+
+def create_vgg16_dense_model2(encoded_shape):
+
+
+    # model = Sequential()
+    # model.add(ZeroPadding2D((1, 1), input_shape=(3, 224, 224)))
+    # model.add(Convolution2D(64, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(64, 3, 3, activation='relu'))
+    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(128, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(128, 3, 3, activation='relu'))
+    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(256, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(256, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(256, 3, 3, activation='relu'))
+    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(512, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(512, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(512, 3, 3, activation='relu'))
+    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(512, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(512, 3, 3, activation='relu'))
+    # model.add(ZeroPadding2D((1, 1)))
+    # model.add(Convolution2D(512, 3, 3, activation='relu'))
+    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    # model.add(Flatten())
+    # model.add(Dense(4096, activation='relu'))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(4096, activation='relu'))
+    # model.add(Dropout(0.5))
+    # model.add(Dense(1000, activation='softmax'))
+
+
+    # model.load_weights('vgg16_weights.h5')
+
+
+    result = Sequential()
+    result.add(Dense(4096, activation='relu', input_shape=encoded_shape))
+    result.add(Dropout(0.5))
+    result.add(Dense(4096, activation='relu'))
+    result.add(Dropout(0.5))
+    result.add(Dense(10, activation='softmax'))
+
+    result.summary()
+
+    #result.layers[-3].set_weights(model.layers[-3].get_weights())
+    #result.layers[-5].set_weights(model.layers[-5].get_weights())
+
+    f = h5py.File('vgg16_weights.h5')
+
+    g = f['layer_{}'.format(32)]
+    result.layers[-5].set_weights([g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])])
+
+    g = f['layer_{}'.format(34)]
+    result.layers[-3].set_weights([g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])])
+
+    f.close()
+
+    optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
+    #optimizer = RMSprop()
+    #optimizer = Adam(lr=4e-1)
+    #optimizer = Adadelta(lr=1e0)
+    result.compile(optimizer=optimizer, loss='categorical_crossentropy')
+    return result
 
 def categorical_to_dense(labels):
 	result = np.zeros((len(labels)), dtype='int8')
@@ -218,8 +367,8 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 											folder_name='folder_name', 
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
-	nb_epoch = 50
-	batch_size = 128
+	nb_epoch = 100
+	batch_size = 16
 	random_state = 51
 	restore_from_last_checkpoint = 0
 	img_rows, img_cols, color_type = img_shape
@@ -241,7 +390,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 			_, test_id = restore_data(cache_path)
 
 
-			encoded_test_data = np.load(open(test_fn, 'rb'))
+			encoded_test_data = np.load(open(test_fn, 'rb')).astype('float32')
 			
 			print('encoded test data shape: %s' % str(encoded_test_data.shape))
 			print('test id length: %s' % len(test_id))
@@ -265,7 +414,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 				split_encoded = encoder.predict(split_test_data, batch_size = 2, verbose=True)
 				all_encoded_splits.append(split_encoded)
 
-			encoded_test_data = np.concatenate(all_encoded_splits)
+			encoded_test_data = np.concatenate(all_encoded_splits).astype('float32')
 			print('encoded test data shape: %s' % str(encoded_test_data.shape))
 
 			#encoded_test_data = encoder.predict(test_data, batch_size = 8, verbose=True)
@@ -280,7 +429,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	print('encoded data filename: %s' % fn)
 	if os.path.exists(fn):
 		print('getting encoded data from file')
-		encoded_train_data = np.load(fn)
+		encoded_train_data = np.load(fn).astype('float32')
 	else:
 		print('using vgg16 to encode data, then save to file')
 		encoder = vgg_std16_encoder2(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
@@ -292,6 +441,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	
 	encoded_shape = encoded_train_data.shape
 	print('train encoded shape: %s' % str(encoded_train_data.shape))
+	print('train encoded type: %s' % str(encoded_train_data.dtype))
 
 	if do_test_predictions: print('test encoded shape: %s' % str(encoded_test_data.shape))
 	
@@ -329,13 +479,16 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 		if isinstance(model, Sequential):
 			kfold_weights_path = os.path.join(weights_folder, 'weights_kfold_' + str(num_fold) + '.h5')
 			if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
+				print('Training keras model...')
 				callbacks = []
-				callbacks.append(EarlyStopping(monitor='val_loss', patience=1000, verbose=0))
+				callbacks.append(EarlyStopping(monitor='val_loss', patience=10, verbose=0))
 				callbacks.append(ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0))
 			
-			model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
-				shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
-				callbacks=callbacks)
+				model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
+					shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
+					callbacks=callbacks)
+			else:
+				print('found model weights file')
 	
 			if os.path.isfile(kfold_weights_path):
 			    model.load_weights(kfold_weights_path)
@@ -407,13 +560,14 @@ def main():
 	# print('got encoder')
 
 
-	model_builder = create_logistic_model
+	# model_builder = create_logistic_model
 	# model_builder = create_mlp_model
+	model_builder = create_vgg16_dense_model2
 	# model_builder = create_sklearn_logreg
 	# model_builder = create_sklearn_svm
 
 	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=26, 
+									nfolds=13, 
 									do_test_predictions = True,
 									folder_name=folder_name, 
 									model_build_func = model_builder,

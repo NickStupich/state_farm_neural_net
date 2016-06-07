@@ -146,9 +146,14 @@ def save_model(model, index, cross=''):
 
 
 def read_model(index, cross=''):
+    
     json_name = 'architecture' + str(index) + cross + '.json'
     weight_name = 'model_weights' + str(index) + cross + '.h5'
-    model = model_from_json(open(os.path.join('cache', json_name)).read())
+    if 0:
+        model = model_from_json(open(os.path.join('cache', json_name)).read())
+    else:
+        model = vgg_std16_model(224, 224, 3)
+
     model.load_weights(os.path.join('cache', weight_name))
     return model
 
@@ -353,10 +358,6 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     batch_size = 2
     random_state = 20
 
-    train_data, train_target, driver_id, unique_drivers = \
-        read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                                  color_type_global)
-
     # ishuf_train_data = []
     # shuf_train_target = []
     # index_shuf = range(len(train_target))
@@ -368,50 +369,94 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     # yfull_train = dict()
     # yfull_test = []
     num_fold = 0
-    kf = KFold(len(unique_drivers), n_folds=nfolds,
-               shuffle=True, random_state=random_state)
-    for train_drivers, test_drivers in kf:
-        num_fold += 1
-        print('Start KFold number {} from {}'.format(num_fold, nfolds))
-        # print('Split train: ', len(X_train), len(Y_train))
-        # print('Split valid: ', len(X_valid), len(Y_valid))
-        # print('Train drivers: ', unique_list_train)
-        # print('Test drivers: ', unique_list_valid)
-        # model = create_model_v1(img_rows, img_cols, color_type_global)
-        # model = vgg_bn_model(img_rows, img_cols, color_type_global)
-        model = vgg_std16_model(img_rows, img_cols, color_type_global)
+    #kf = KFold(len(unique_drivers), n_folds=nfolds,
+               #shuffle=True, random_state=random_state)
+    #for train_drivers, test_drivers in kf:
+    if 0:
+        train_data, train_target, driver_id, unique_drivers = \
+            read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
+                                                      color_type_global)
 
-        model.fit(train_data, train_target, 
-                batch_size=batch_size,
-                  nb_epoch=nb_epoch,
-                  verbose=1,
-                  validation_split=split, 
-                  shuffle=True)
+        for num_fold in range(nfolds):
+    	#    num_fold += 1
+            print('Start KFold number {} from {}'.format(num_fold, nfolds))
+            # print('Split train: ', len(X_train), len(Y_train))
+            # print('Split valid: ', len(X_valid), len(Y_valid))
+            # print('Train drivers: ', unique_list_train)
+            # print('Test drivers: ', unique_list_valid)
+            # model = create_model_v1(img_rows, img_cols, color_type_global)
+            # model = vgg_bn_model(img_rows, img_cols, color_type_global)
+            model = vgg_std16_model(img_rows, img_cols, color_type_global)
 
-        # print('losses: ' + hist.history.losses[-1])
+            model.fit(train_data, train_target, 
+                    batch_size=batch_size,
+                      nb_epoch=nb_epoch,
+                      verbose=1,
+                      validation_split=split, 
+                      shuffle=True)
 
-        # print('Score log_loss: ', score[0])
+            # print('losses: ' + hist.history.losses[-1])
 
-        save_model(model, num_fold, modelStr)
+            # print('Score log_loss: ', score[0])
 
-        # predictions_valid = model.predict(X_valid, batch_size=128, verbose=1)
-        # score = log_loss(Y_valid, predictions_valid)
-        # print('Score log_loss: ', score)
-        # Store valid predictions
-        # for i in range(len(test_index)):
-        #    yfull_train[test_index[i]] = predictions_valid[i]
+            save_model(model, num_fold, modelStr)
+
+            # predictions_valid = model.predict(X_valid, batch_size=128, verbose=1)
+            # score = log_loss(Y_valid, predictions_valid)
+            # print('Score log_loss: ', score)
+            # Store valid predictions
+            # for i in range(len(test_index)):
+            #    yfull_train[test_index[i]] = predictions_valid[i]
 
     print('Start testing............')
-    test_data, test_id = read_and_normalize_test_data(img_rows, img_cols,
-                                                      color_type_global)
-    yfull_test = []
 
-    for index in range(1, num_fold + 1):
-        # 1,2,3,4,5
-        # Store test predictions
-        model = read_model(index, modelStr)
-        test_prediction = model.predict(test_data, batch_size=128, verbose=1)
-        yfull_test.append(test_prediction)
+    if 0:
+        test_data, test_id = read_and_normalize_test_data(img_rows, img_cols,
+                                                          color_type_global)
+        yfull_test = []
+
+        for index in range(1, num_fold + 1):
+            # 1,2,3,4,5
+            # Store test predictions
+            model = read_model(index, modelStr)
+            test_prediction = model.predict(test_data, batch_size=2, verbose=1)
+            yfull_test.append(test_prediction)
+    else:
+        cache_path = os.path.join('cache', 'test_r_' + str(img_rows) +
+                '_c_' + str(img_cols) + '_t_' +
+                str(color_type_global) + '.dat')
+        _, test_id = restore_data(cache_path)
+
+
+        yfull_test = np.zeros((num_fold, len(test_id), 10))
+        print('yfull_test shape: %s' % str(yfull_test.shape))
+
+        models = []
+        for index in range(nfolds):
+            model = read_model(index, modelStr)
+            model.summary()
+            model.compile(optimizer='sgd', loss='categorical_crossentropy')
+            models.append(model)
+
+        print('loaded %d models' % len(models))
+
+        splits = 10
+        n = 79726
+        for split in range(splits):
+            print('running split %d' % split)
+            index_range = [int(split*n/splits),int((split+1)*n/splits)]
+            print(index_range)
+
+            split_test_data, split_ids = read_and_normalize_test_data(img_rows, img_cols, color_type_global, index_range = index_range)
+            
+            print('split test data shape: %s' % str(split_test_data.shape))
+
+            for index in range(nfolds):
+                model = models[index]
+                predictions = model.predict(split_test_data, batch_size = 2, verbose=True)
+                print('predictions shape: %s' % str(predictions.shape))
+                yfull_test[index, index_range[0]:index_range[1]] = predictions
+
 
     info_string = 'loss_' + modelStr \
                   + '_r_' + str(img_rows) \
@@ -451,7 +496,7 @@ def test_model_and_submit(start=1, end=1, modelStr=''):
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(2, 7, 0.15, '_vgg_16_2x20')
+    run_cross_validation(1, 3, 0.1, '_vgg_16_2x20')
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)
