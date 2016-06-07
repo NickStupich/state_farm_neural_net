@@ -91,11 +91,12 @@ def get_trained_vgg16_model_2(img_rows, img_cols, color_type):
         g = f['layer_{}'.format(k)]
         weights = [g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])]
         if len(weights) > 0:
-            while len(model.layers[model_k].get_weights()) == 0:
+            while model_k < len(model.layers) and len(model.layers[model_k].get_weights()) == 0:
                 model_k += 1
                 #print('skipping model layer %d' % model_k)
 
             #print('setting weights from full model layer %d to layer %d' % (k, model_k))
+            if model_k == len(model.layers): break
             model.layers[model_k].set_weights(weights)
             model_k += 1
     f.close()
