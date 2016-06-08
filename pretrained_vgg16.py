@@ -34,6 +34,7 @@ color_type_global = 3
 # color_type = 1 - gray
 # color_type = 3 - RGB
 
+from vgg16_efficiency import get_trained_vgg16_model_2
 
 def get_im(path, img_rows, img_cols, color_type=1):
     # Load as grayscale
@@ -149,10 +150,12 @@ def read_model(index, cross=''):
     
     json_name = 'architecture' + str(index) + cross + '.json'
     weight_name = 'model_weights' + str(index) + cross + '.h5'
+    print('reading model. weights name: %s' % weight_name)
     if 0:
         model = model_from_json(open(os.path.join('cache', json_name)).read())
     else:
-        model = vgg_std16_model(224, 224, 3)
+        #model = vgg_std16_model(224, 224, 3)
+        model = vgg_std16_model2(224, 224, 3)
 
     model.load_weights(os.path.join('cache', weight_name))
     return model
@@ -292,6 +295,15 @@ def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
     index = np.array(index, dtype=np.uint32)
     return data, target, index
 
+def vgg_std16_model2(img_rows, img_cols, color_type):
+    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type)
+    model.layers.pop()
+    model.add(Dense(10, activation='softmax'))
+    # Learning rate is changed to 0.001
+    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    return model
 
 def vgg_std16_model(img_rows, img_cols, color_type=1):
     model = Sequential()
@@ -355,7 +367,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     # Now it loads color image
     # input image dimensions
     img_rows, img_cols = 224, 224
-    batch_size = 2
+    batch_size = 1
     random_state = 20
 
     # ishuf_train_data = []
@@ -372,7 +384,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     #kf = KFold(len(unique_drivers), n_folds=nfolds,
                #shuffle=True, random_state=random_state)
     #for train_drivers, test_drivers in kf:
-    if 0:
+    if 1:
         train_data, train_target, driver_id, unique_drivers = \
             read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
                                                       color_type_global)
@@ -386,8 +398,10 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
             # print('Test drivers: ', unique_list_valid)
             # model = create_model_v1(img_rows, img_cols, color_type_global)
             # model = vgg_bn_model(img_rows, img_cols, color_type_global)
-            model = vgg_std16_model(img_rows, img_cols, color_type_global)
-
+            # model = get_trained_vgg16_model_2(img_rows, img_cols, color_type_global)
+            # model = vgg_std16_model(img_rows, img_cols, color_type_global)
+            model = vgg_std16_model2(img_rows, img_cols, color_type_global)
+            
             model.fit(train_data, train_target, 
                     batch_size=batch_size,
                       nb_epoch=nb_epoch,
@@ -428,7 +442,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
         _, test_id = restore_data(cache_path)
 
 
-        yfull_test = np.zeros((num_fold, len(test_id), 10))
+        yfull_test = np.zeros((nfolds, len(test_id), 10))
         print('yfull_test shape: %s' % str(yfull_test.shape))
 
         models = []
@@ -496,7 +510,7 @@ def test_model_and_submit(start=1, end=1, modelStr=''):
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(1, 3, 0.1, '_vgg_16_2x20')
+    run_cross_validation(1, 5, 0.1, '_vgg_16_2x20')
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)

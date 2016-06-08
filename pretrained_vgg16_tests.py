@@ -152,55 +152,6 @@ def create_vgg16_dense_model(encoded_shape):
 
 def create_vgg16_dense_model2(encoded_shape):
 
-
-    # model = Sequential()
-    # model.add(ZeroPadding2D((1, 1), input_shape=(3, 224, 224)))
-    # model.add(Convolution2D(64, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(64, 3, 3, activation='relu'))
-    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(128, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(128, 3, 3, activation='relu'))
-    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(256, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(256, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(256, 3, 3, activation='relu'))
-    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(512, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(512, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(512, 3, 3, activation='relu'))
-    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(512, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(512, 3, 3, activation='relu'))
-    # model.add(ZeroPadding2D((1, 1)))
-    # model.add(Convolution2D(512, 3, 3, activation='relu'))
-    # model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    # model.add(Flatten())
-    # model.add(Dense(4096, activation='relu'))
-    # model.add(Dropout(0.5))
-    # model.add(Dense(4096, activation='relu'))
-    # model.add(Dropout(0.5))
-    # model.add(Dense(1000, activation='softmax'))
-
-
-    # model.load_weights('vgg16_weights.h5')
-
-
     result = Sequential()
     result.add(Dense(4096, activation='relu', input_shape=encoded_shape))
     result.add(Dropout(0.5))
@@ -209,9 +160,6 @@ def create_vgg16_dense_model2(encoded_shape):
     result.add(Dense(10, activation='softmax'))
 
     result.summary()
-
-    #result.layers[-3].set_weights(model.layers[-3].get_weights())
-    #result.layers[-5].set_weights(model.layers[-5].get_weights())
 
     f = h5py.File('vgg16_weights.h5')
 
@@ -223,10 +171,10 @@ def create_vgg16_dense_model2(encoded_shape):
 
     f.close()
 
-    optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
+    # optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
     #optimizer = RMSprop()
     #optimizer = Adam(lr=4e-1)
-    #optimizer = Adadelta(lr=1e0)
+    optimizer = Adadelta(lr=1.0e-2)
     result.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return result
 

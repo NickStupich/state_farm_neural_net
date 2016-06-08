@@ -1,0 +1,36 @@
+encoded data filename: vgg16_encoder1/vgg_encoded_test_connected-False.npy
+Restore data from pickle........
+encoded test data shape: (79726, 25088)
+test id length: 79726
+Restore train from cache!
+Restore data from pickle........
+Train shape: (22424, 3, 224, 224)
+22424 train samples
+encoded data filename: vgg16_encoder1/vgg_encoded_connected-False.npy
+getting encoded data from file
+train encoded shape: (22424, 25088)
+train encoded type: float32
+test encoded shape: (79726, 25088)
+____________________________________________________________________________________________________
+Layer (type)                       Output Shape        Param #     Connected to                     
+====================================================================================================
+dense_1 (Dense)                    (None, 4096)        102764544   dense_input_1[0][0]              
+____________________________________________________________________________________________________
+dropout_1 (Dropout)                (None, 4096)        0           dense_1[0][0]                    
+____________________________________________________________________________________________________
+dense_2 (Dense)                    (None, 4096)        16781312    dropout_1[0][0]                  
+____________________________________________________________________________________________________
+dropout_2 (Dropout)                (None, 4096)        0           dense_2[0][0]                    
+____________________________________________________________________________________________________
+dense_3 (Dense)                    (None, 10)          40970       dropout_2[0][0]                  
+====================================================================================================
+Total params: 119586826
+____________________________________________________________________________________________________
+Start KFold number 1 from 13
+Split train:  20547 20547
+Split valid:  1877 1877
+Train drivers:  ['p002', 'p012', 'p014', 'p015', 'p016', 'p021', 'p022', 'p026', 'p035', 'p041', 'p042', 'p045', 'p047', 'p049', 'p050', 'p051', 'p052', 'p056', 'p061', 'p064', 'p066', 'p072', 'p075', 'p081']
+Test drivers:  ['p024', 'p039']
+Training keras model...
+Train on 20547 samples, validate on 1877 samples
+Epoch 1/100
