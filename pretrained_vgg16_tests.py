@@ -171,10 +171,10 @@ def create_vgg16_dense_model2(encoded_shape):
 
     f.close()
 
-    # optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
+    optimizer = SGD(lr=2e-6, momentum = 0.9, decay = 0.0)
     #optimizer = RMSprop()
     #optimizer = Adam(lr=4e-1)
-    optimizer = Adadelta(lr=1.0e-2)
+    #optimizer = Adadelta(lr=1.0e-2)
     result.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return result
 
@@ -315,8 +315,8 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 											folder_name='folder_name', 
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
-	nb_epoch = 100
-	batch_size = 16
+	nb_epoch = 1
+	batch_size = 8
 	random_state = 51
 	restore_from_last_checkpoint = 0
 	img_rows, img_cols, color_type = img_shape
@@ -515,11 +515,11 @@ def main():
 	# model_builder = create_sklearn_svm
 
 	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=13, 
-									do_test_predictions = True,
+									nfolds=4, 
+									do_test_predictions = False,
 									folder_name=folder_name, 
 									model_build_func = model_builder,
-									retrain_single_model = True)
+									retrain_single_model = False)
 
 if __name__ == "__main__":
 	main()
