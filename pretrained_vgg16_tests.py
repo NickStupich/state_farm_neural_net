@@ -150,6 +150,18 @@ def create_vgg16_dense_model(encoded_shape):
     result.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return result
 
+def set_dense_model_weights(model):
+
+    f = h5py.File('vgg16_weights.h5')
+
+    g = f['layer_{}'.format(32)]
+    model.layers[-5].set_weights([g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])])
+
+    g = f['layer_{}'.format(34)]
+    model.layers[-3].set_weights([g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])])
+
+    f.close()
+
 def create_vgg16_dense_model2(encoded_shape):
 
     result = Sequential()
@@ -161,15 +173,7 @@ def create_vgg16_dense_model2(encoded_shape):
 
     result.summary()
 
-    f = h5py.File('vgg16_weights.h5')
-
-    g = f['layer_{}'.format(32)]
-    result.layers[-5].set_weights([g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])])
-
-    g = f['layer_{}'.format(34)]
-    result.layers[-3].set_weights([g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])])
-
-    f.close()
+    set_dense_model_weights(result)
 
     optimizer = SGD(lr=2e-6, momentum = 0.9, decay = 0.0)
     #optimizer = RMSprop()
@@ -316,7 +320,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
 	nb_epoch = 1
-	batch_size = 8
+	batch_size = 16
 	random_state = 51
 	restore_from_last_checkpoint = 0
 	img_rows, img_cols, color_type = img_shape
@@ -399,8 +403,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	weights_folder = '%s/cache%s' % (folder_name, 'encoder_no_finetune')
 	if not os.path.exists(weights_folder): os.mkdir(weights_folder)
 
-	if retrain_single_model:
-		model = model_build_func(encoded_shape[1:])
+	model = model_build_func(encoded_shape[1:])
 
 	yfull_train = dict()
 	yfull_test = []
@@ -410,7 +413,8 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	for train_drivers, test_drivers in kf:
 
 		if not retrain_single_model:
-			model = model_build_func(encoded_shape[1:])
+            set_dense_model_weights(model)
+            #model = model_build_func(encoded_shape[1:])
 
 		unique_list_train = [unique_drivers[i] for i in train_drivers]
 		X_train, Y_train, train_index = copy_selected_drivers(encoded_train_data, train_target, driver_id, unique_list_train)
