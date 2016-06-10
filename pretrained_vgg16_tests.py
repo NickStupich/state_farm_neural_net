@@ -179,7 +179,7 @@ def create_vgg16_dense_model2(encoded_shape):
     #optimizer = RMSprop()
     #optimizer = Adam(lr=4e-1)
     #optimizer = Adadelta(lr=1.0e-2)
-    result.compile(optimizer=optimizer, loss='categorical_crossentropy')
+    result.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     return result
 
 def categorical_to_dense(labels):
@@ -319,7 +319,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 											folder_name='folder_name', 
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
-	nb_epoch = 1
+	nb_epoch = 100
 	batch_size = 16
 	random_state = 51
 	restore_from_last_checkpoint = 0
@@ -411,17 +411,18 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	num_fold = 0
 	sum_score = 0
 	for train_drivers, test_drivers in kf:
+		num_fold += 1
+		#if num_fold <= 2: continue
 
 		if not retrain_single_model:
-            set_dense_model_weights(model)
-            #model = model_build_func(encoded_shape[1:])
+			set_dense_model_weights(model)
+			#model = model_build_func(encoded_shape[1:])
 
 		unique_list_train = [unique_drivers[i] for i in train_drivers]
 		X_train, Y_train, train_index = copy_selected_drivers(encoded_train_data, train_target, driver_id, unique_list_train)
 		unique_list_valid = [unique_drivers[i] for i in test_drivers]
 		X_valid, Y_valid, test_index = copy_selected_drivers(encoded_train_data, train_target, driver_id, unique_list_valid)
 
-		num_fold += 1
 		print('Start KFold number {} from {}'.format(num_fold, nfolds))
 		print('Split train: ', len(X_train), len(Y_train))
 		print('Split valid: ', len(X_valid), len(Y_valid))
@@ -519,8 +520,8 @@ def main():
 	# model_builder = create_sklearn_svm
 
 	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=4, 
-									do_test_predictions = False,
+									nfolds=13, 
+									do_test_predictions = True,
 									folder_name=folder_name, 
 									model_build_func = model_builder,
 									retrain_single_model = False)
