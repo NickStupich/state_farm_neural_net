@@ -350,6 +350,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	if os.path.exists(fn):
 		print('getting encoded data from file')
 		encoded_train_data = np.load(fn).astype('float32')
+
 	else:
 		print('using vgg16 to encode data, then save to file')
 		encoder = vgg_std16_encoder2(img_shape[0], img_shape[1], img_shape[2], include_connected_layers = include_connected)
@@ -553,13 +554,47 @@ def fine_tune_from_vgg16_conv_trained_upper(do_test_predictions = False,
 		sum_score += score*len(test_index)
 
 
+def use_trained_models_on_test(model_filename, n_models = 3):
+
+
+	model = get_vgg16_pretrained_model(num_outputs = 10)
+	model.compile(optimizer='sgd', loss='categorical_crossentropy')
+
+	splits = 10
+	n = 79726
+
+	yfull_test = np.zeros((n_models, n, 10))	
+	
+	for split in range(splits):
+		print('running split %d' % split)
+		index_range = [int(split*n/splits),int((split+1)*n/splits)]
+		print(index_range)
+
+		split_test_data, split_ids = read_and_normalize_test_data(224, 224, 3, index_range = index_range)
+
+		print('split test data shape: %s' % str(split_test_data.shape))
+
+		for index in range(n_models):
+
+			fn = model_filename % (index+1)
+			print('loading model weights from %s' % fn)
+			model.load_weights(fn)
+
+
+			predictions = model.predict(split_test_data, batch_size = 8, verbose=True)
+			print('predictions shape: %s' % str(predictions.shape))
+			yfull_test[index, index_range[0]:index_range[1]] = predictions
+
+	test_res = merge_several_folds_mean(yfull_test, nfolds)
+	create_submission(test_res, test_id, 'vgg16_full_fine_tune_nmodels%d' % n_models)
+
 def main():
 
 	img_rows, img_cols = 224, 224
 	color_type = 3
 	input_shape = [img_rows, img_cols, color_type]
 
-	folder_name = 'vgg16_encoder1'
+	folder_name = 'vgg16_encoder1_train_means'
 
 	if not os.path.exists(folder_name):	os.mkdir(folder_name)
 
@@ -568,7 +603,7 @@ def main():
 	# print('got encoder')
 
 
-	if 0:
+	if 1:
 		# model_builder = create_logistic_model
 		# model_builder = create_mlp_model
 		model_builder = create_vgg16_dense_model2
@@ -577,12 +612,17 @@ def main():
 
 		cross_validation_wth_encoder_no_finetune(input_shape, 
 										nfolds=13, 
-										do_test_predictions = False,
+										do_test_predictions = True,
 										folder_name=folder_name, 
 										model_build_func = model_builder,
-										retrain_single_model = False)
-	elif 1:
+										retrain_single_model = True)
+	elif 0:
 		fine_tune_from_vgg16_conv_trained_upper()
+
+	elif 0:
+		use_trained_models_on_test(
+			model_filename = 'overall_fine_tune/cachevgg16_finetune/full_fine_tune_weights_kfold_%d.h5',
+			n_models = 3)
 
 if __name__ == "__main__":
 	main()

@@ -26,6 +26,9 @@ from keras.models import model_from_json
 from numpy.random import permutation
 
 
+# mean_pixel = [103.939, 116.779, 123.68] #vgg16 paper
+mean_pixel = [95.079, 96.925, 80.067]   #train data mean
+
 np.random.seed(2016)
 use_cache = 1
 # color type: 1 - grey, 3 - rgb
@@ -211,7 +214,6 @@ def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
 
     train_target = np_utils.to_categorical(train_target, 10)
     train_data = train_data.astype('float32')
-    mean_pixel = [103.939, 116.779, 123.68]
     for c in range(3):
         train_data[:, c, :, :] = train_data[:, c, :, :] - mean_pixel[c]
     # train_data /= 255
@@ -249,7 +251,6 @@ def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index
         test_data = test_data.transpose((0, 3, 1, 2))
 
     test_data = test_data.astype('float32')
-    mean_pixel = [103.939, 116.779, 123.68]
     for c in range(3):
         test_data[:, c, :, :] = test_data[:, c, :, :] - mean_pixel[c]
     # test_data /= 255
