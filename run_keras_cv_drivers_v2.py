@@ -124,8 +124,8 @@ def load_train(img_rows, img_cols, color_type=1):
         files = glob.glob(path)
         for fl in files:
             flbase = os.path.basename(fl)
-            # img = get_im_cv2(fl, img_rows, img_cols, color_type)
-            img = get_im_cv2_mod(fl, img_rows, img_cols, color_type)
+            img = get_im_cv2(fl, img_rows, img_cols, color_type)
+            #img = get_im_cv2_mod(fl, img_rows, img_cols, color_type)
             X_train.append(img)
             X_train_id.append(flbase)
             y_train.append(j)
@@ -229,7 +229,7 @@ def save_useful_data(predictions_valid, valid_ids, model, info):
     copy2(cur_code, code_file)
 
 
-def read_and_normalize_train_data(img_rows, img_cols, color_type=1, one_hot_label_encoding=True):
+def read_and_normalize_train_data(img_rows, img_cols, color_type=1, one_hot_label_encoding=True, normalize=True):
     cache_path = os.path.join('cache', 'train_r_' + str(img_rows) + '_c_' + str(img_cols) + '_t_' + str(color_type) + '_rotated.dat')
     if not os.path.isfile(cache_path) or use_cache == 0:
         print('Train data cache file not found: %s' % cache_path)
@@ -239,8 +239,8 @@ def read_and_normalize_train_data(img_rows, img_cols, color_type=1, one_hot_labe
         print('Restore train from cache!')
         (train_data, train_target, train_id, driver_id, unique_drivers) = restore_data(cache_path)
 
-    train_data = np.array(train_data, dtype=np.int32)
-    train_target = np.array(train_target, dtype=np.int32)
+    train_data = np.array(train_data, dtype=np.uint8)
+    train_target = np.array(train_target, dtype=np.uint8)
 
     if color_type == 1:
         train_data = train_data.reshape(train_data.shape[0], 1, img_rows, img_cols)
@@ -250,8 +250,10 @@ def read_and_normalize_train_data(img_rows, img_cols, color_type=1, one_hot_labe
     if one_hot_label_encoding:
         train_target = np_utils.to_categorical(train_target, 10)
 
-    train_data = train_data.astype('float32')
-    train_data /= 255
+    if normalize:
+        train_data = train_data.astype('float32')
+        train_data /= 255
+
     print('Train shape:', train_data.shape)
     print(train_data.shape[0], 'train samples')
     return train_data, train_target, train_id, driver_id, unique_drivers

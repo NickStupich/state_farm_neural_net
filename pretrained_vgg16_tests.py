@@ -8,6 +8,7 @@ import pylab
 import cv2
 import os
 import h5py
+from keras import backend as K
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint	
 from keras.regularizers import l2
@@ -19,6 +20,7 @@ from sklearn.svm import SVC
 # from run_keras_cv_drivers_v2 import *	
 from pretrained_vgg16 import *
 
+import vgg16_efficiency 
 
 printedSummary = False
 def create_logistic_model(encoded_shape):
@@ -77,78 +79,6 @@ def create_mlp_model(encoded_shape, layers = [500]):
     print('using optimizer: %s' % str(optimizer))
     model.compile(optimizer=optimizer, loss='categorical_crossentropy')
     return model
-
-def create_vgg16_dense_model(encoded_shape):
-
-
-    model = Sequential()
-    model.add(ZeroPadding2D((1, 1), input_shape=(3, 224, 224)))
-    model.add(Convolution2D(64, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(64, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(128, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(128, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(Flatten())
-    model.add(Dense(4096, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(4096, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(1000, activation='softmax'))
-
-
-    model.load_weights('vgg16_weights.h5')
-
-
-    result = Sequential()
-    result.add(Dense(4096, activation='relu', input_shape=encoded_shape))
-    result.add(Dropout(0.5))
-    result.add(Dense(4096, activation='relu'))
-    result.add(Dropout(0.5))
-    result.add(Dense(10, activation='softmax'))
-
-    result.summary()
-
-    result.layers[-3].set_weights(model.layers[-3].get_weights())
-    result.layers[-5].set_weights(model.layers[-5].get_weights())
-
-
-
-    optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
-    #optimizer = RMSprop()
-    #optimizer = Adam(lr=4e-1)
-    #optimizer = Adadelta(lr=1e0)
-    result.compile(optimizer=optimizer, loss='categorical_crossentropy')
-    return result
 
 def set_dense_model_weights(model):
 
@@ -256,6 +186,18 @@ def vgg_std16_encoder(img_rows, img_cols, color_type=1, include_connected_layers
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
+def get_vgg16_pretrained_model(num_outputs = 10):
+	model = vgg16_efficiency.get_trained_vgg16_model_2(224, 224, 3, output_size = 10)
+
+	#model.layers.pop()
+	#model.add(Dense(num_outputs, activation='softmax'))
+	model.summary()
+
+	optimizer = SGD(lr=1e-6, momentum = 0.9, decay = 0.0)
+	model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+	return model
+
 def vgg_std16_encoder2(img_rows, img_cols, color_type=1, include_connected_layers = True):
     
     model_weights = get_trained_vgg16_model(img_rows, img_cols, color_type)
@@ -313,6 +255,32 @@ def vgg_std16_encoder2(img_rows, img_cols, color_type=1, include_connected_layer
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
+def set_dense_layers_weights(model, weights):
+	#print('number of weights: %d' % len(weights))
+	model_i = len(model.layers)-1
+	for i in range(len(weights)):
+		while len(model.layers[model_i].get_weights()) == 0:
+			model_i -= 1
+
+		weight = weights[-i-1]
+		layer = model.layers[model_i]
+		# print(layer.name)
+
+
+		symbolic_weights = layer.trainable_weights + layer.non_trainable_weights
+		#print(weight)
+		# layer.set_weights(weight)
+		#print(len(symbolic_weights))
+		#print(len(weight))
+
+		weight_tuples = zip(symbolic_weights, weight)
+
+		K.batch_set_value(weight_tuples)
+
+		model_i -= 1
+		#print('set values for layer %d' % i)
+
+
 def cross_validation_wth_encoder_no_finetune(img_shape, 
 											nfolds=13, 
 											do_test_predictions = False, 
@@ -320,7 +288,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
 	nb_epoch = 100
-	batch_size = 16
+	batch_size = 2
 	random_state = 51
 	restore_from_last_checkpoint = 0
 	img_rows, img_cols, color_type = img_shape
@@ -498,6 +466,93 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 	#save_useful_data(predictions_valid, train_id, model, info_string)
 
 
+def fine_tune_from_vgg16_conv_trained_upper(do_test_predictions = False, 
+											folder_name='overall_fine_tune'
+											):
+	nfolds = 13
+	nb_epoch = 10
+	batch_size = 2
+	random_state = 51
+	restore_from_last_checkpoint = 0
+	img_shape = (224, 224, 3)
+	img_rows, img_cols, color_type = img_shape
+
+	if not os.path.exists(folder_name):	os.mkdir(folder_name)
+
+	weights_folder = '%s/cache%s' % (folder_name, 'vgg16_finetune')
+	if not os.path.exists(weights_folder): os.mkdir(weights_folder)
+
+	model = get_vgg16_pretrained_model(num_outputs = 10)
+
+	train_data, train_target, driver_id, unique_drivers = read_and_normalize_and_shuffle_train_data(*img_shape)
+
+
+	yfull_train = dict()
+	yfull_test = []
+	kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
+	num_fold = 0
+	sum_score = 0
+	for train_drivers, test_drivers in kf:
+		num_fold += 1
+
+		if num_fold <= 2: continue
+
+		unique_list_train = [unique_drivers[i] for i in train_drivers]
+		X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
+		unique_list_valid = [unique_drivers[i] for i in test_drivers]
+		X_valid, Y_valid, test_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
+		
+		print('Start KFold number {} from {}'.format(num_fold, nfolds))
+		print('Split train: ', len(X_train), len(Y_train))
+		print('Split valid: ', len(X_valid), len(Y_valid))
+		print('Train drivers: ', unique_list_train)
+		print('Test drivers: ', unique_list_valid)
+
+		#reset everything to vgg16
+		vgg16_efficiency.set_vgg16_model_2_weights(model, set_last_layer = False)	
+
+		if 0:
+			dense_weights_path = os.path.join('vgg16_encoder1/cacheencoder_no_finetune', 'weights_kfold_' + str(num_fold) + '.h5')
+			f = h5py.File(dense_weights_path)
+			dense_weights = []
+
+			for layer_name in f.attrs['layer_names']:
+
+				g = f[layer_name]
+				weight_names = g.attrs['weight_names']
+				weight_values = [g[weight_name] for weight_name in weight_names]
+				if len(weight_values):
+					dense_weights.append(weight_values)
+					# print(layer_name)		
+			set_dense_layers_weights(model, dense_weights)
+			f.close()
+
+
+
+		kfold_weights_path = os.path.join(weights_folder, 'full_fine_tune_weights_kfold_' + str(num_fold) + '.h5')
+		if not os.path.isfile(kfold_weights_path) or restore_from_last_checkpoint == 0:
+			print('Training keras model...')
+			callbacks = []
+			callbacks.append(EarlyStopping(monitor='val_loss', patience=10, verbose=0))
+			callbacks.append(ModelCheckpoint(kfold_weights_path, monitor='val_loss', save_best_only=True, verbose=0))
+		
+			model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
+				shuffle=True, verbose=1, validation_data=(X_valid, Y_valid),
+				callbacks=callbacks)
+		else:
+			print('found model weights file')
+
+		if os.path.isfile(kfold_weights_path):
+		    model.load_weights(kfold_weights_path)
+
+
+		predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+
+		score = log_loss(Y_valid, predictions_valid)
+		print('Score log_loss: ', score)
+		sum_score += score*len(test_index)
+
+
 def main():
 
 	img_rows, img_cols = 224, 224
@@ -513,18 +568,21 @@ def main():
 	# print('got encoder')
 
 
-	# model_builder = create_logistic_model
-	# model_builder = create_mlp_model
-	model_builder = create_vgg16_dense_model2
-	# model_builder = create_sklearn_logreg
-	# model_builder = create_sklearn_svm
+	if 0:
+		# model_builder = create_logistic_model
+		# model_builder = create_mlp_model
+		model_builder = create_vgg16_dense_model2
+		# model_builder = create_sklearn_logreg
+		# model_builder = create_sklearn_svm
 
-	cross_validation_wth_encoder_no_finetune(input_shape, 
-									nfolds=13, 
-									do_test_predictions = True,
-									folder_name=folder_name, 
-									model_build_func = model_builder,
-									retrain_single_model = False)
+		cross_validation_wth_encoder_no_finetune(input_shape, 
+										nfolds=13, 
+										do_test_predictions = False,
+										folder_name=folder_name, 
+										model_build_func = model_builder,
+										retrain_single_model = False)
+	elif 1:
+		fine_tune_from_vgg16_conv_trained_upper()
 
 if __name__ == "__main__":
 	main()

@@ -754,19 +754,22 @@ for i, fold in enumerate(folds):
 	print('processing fold %d' % i)
 	lines = fold.split('\n')
 
-	lines = list(filter(lambda x: 'val_loss:' in x, lines))
+	loss_lines = list(filter(lambda x: 'val_loss:' in x, lines))
 
 	# print('\n'.join(lines))
 
-	train_losses = list(map(lambda line: float(line.split(' ')[-10]), lines))
-	valid_losses = list(map(lambda line: float(line.split(' ')[-4]), lines))
+	train_losses = list(map(lambda line: float(line.split(' ')[-10]), loss_lines))
+	valid_losses = list(map(lambda line: float(line.split(' ')[-4]), loss_lines))
 
-	train_acc = list(map(lambda line: float(line.split(' ')[-7]), lines))
-	valid_acc = list(map(lambda line: float(line.split(' ')[-1]), lines))
+	train_acc = list(map(lambda line: float(line.split(' ')[-7]), loss_lines))
+	valid_acc = list(map(lambda line: float(line.split(' ')[-1]), loss_lines))
 
 
-	if len(train_losses) > 0:
-		fold_name = fold.split(' ')[2]
+
+	if len(train_losses) > 0 and i == 2:
+		# fold_name = fold.split(' ')[2]
+		fold_name = list(filter(lambda line: 'Test drivers' in line, lines))[0].split(': ')[-1].strip().strip('[').strip(']').replace("'", '')
+
 		pylab.subplot(211)
 		pylab.plot(train_losses, '--' + colors[i % len(colors)], label=str(fold_name))
 		pylab.plot(valid_losses, colors[i % len(colors)])
@@ -776,6 +779,7 @@ for i, fold in enumerate(folds):
 		pylab.plot(valid_acc, colors[i % len(colors)], label='valid %s' % fold_name)
 	else:
 		print('no data')
+
 
 pylab.subplot(211)
 pylab.legend()

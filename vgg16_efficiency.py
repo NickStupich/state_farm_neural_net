@@ -53,7 +53,29 @@ def get_trained_vgg16_model(img_rows, img_cols, color_type):
 
     return model
 
-def get_trained_vgg16_model_2(img_rows, img_cols, color_type):
+def set_vgg16_model_2_weights(model, set_last_layer = True):
+
+    f = h5py.File('vgg16_weights.h5')
+    model_k = 0
+    model_num_layers = len(model.layers) if set_last_layer else (len(model.layers)-1)
+
+    for k in range(f.attrs['nb_layers']):
+        g = f['layer_{}'.format(k)]
+        weights = [g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])]
+        if len(weights) > 0:
+            while model_k < model_num_layers and len(model.layers[model_k].get_weights()) == 0:
+                model_k += 1
+                #print('skipping model layer %d' % model_k)
+
+            #print('setting weights from full model layer %d to layer %d' % (k, model_k))
+            if model_k == model_num_layers: break
+            #print('setting layer %d / %d' % (model_k, model_num_layers))
+            model.layers[model_k].set_weights(weights)
+            model_k += 1
+    f.close()
+
+
+def get_trained_vgg16_model_2(img_rows, img_cols, color_type, output_size = 1000):
     model = Sequential()
     model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', input_shape=(color_type,img_rows, img_cols)))
     model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same'))
@@ -83,23 +105,10 @@ def get_trained_vgg16_model_2(img_rows, img_cols, color_type):
     model.add(Dropout(0.5))
     model.add(Dense(4096, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(1000, activation='softmax'))
+    model.add(Dense(output_size, activation='softmax'))
 
-    f = h5py.File('vgg16_weights.h5')
-    model_k = 0
-    for k in range(f.attrs['nb_layers']):
-        g = f['layer_{}'.format(k)]
-        weights = [g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])]
-        if len(weights) > 0:
-            while model_k < len(model.layers) and len(model.layers[model_k].get_weights()) == 0:
-                model_k += 1
-                #print('skipping model layer %d' % model_k)
-
-            #print('setting weights from full model layer %d to layer %d' % (k, model_k))
-            if model_k == len(model.layers): break
-            model.layers[model_k].set_weights(weights)
-            model_k += 1
-    f.close()
+    set_last_layer = (output_size == 1000)
+    set_vgg16_model_2_weights(model, set_last_layer = set_last_layer)
 
     return model
 
@@ -112,9 +121,9 @@ def main():
 
     n = 10
     test_input = np.random.uniform(low=0.0, high=1.0, size=(n, 3, 224, 224))
-
-    encode1 = model1.predict(test_input, verbose=True)
-    encode2 = model2.predict(test_input, verbose=True)
+    batch_size = 1
+    encode1 = model1.predict(test_input, verbose=True, batch_size = batch_size)
+    encode2 = model2.predict(test_input, verbose=True, batch_size = batch_size)
 
     print(encode1)
     print(encode2)
