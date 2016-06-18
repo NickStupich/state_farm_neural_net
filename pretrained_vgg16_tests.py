@@ -288,7 +288,7 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 											model_build_func = create_logistic_model,
 											retrain_single_model = True):
 	nb_epoch = 100
-	batch_size = 2
+	batch_size = 16
 	random_state = 51
 	restore_from_last_checkpoint = 0
 	img_rows, img_cols, color_type = img_shape
@@ -322,7 +322,8 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 			splits = 10
 			n = 79726
 			test_id = []
-			all_encoded_splits = []
+			encoded_test_data = None
+			offset = 0
 			for split in range(splits):
 				print('running split %d' % split)
 				index_range = [int(split*n/splits),int((split+1)*n/splits)]
@@ -332,9 +333,14 @@ def cross_validation_wth_encoder_no_finetune(img_shape,
 				test_id += split_ids
 
 				split_encoded = encoder.predict(split_test_data, batch_size = 2, verbose=True)
-				all_encoded_splits.append(split_encoded)
+				#all_encoded_splits.append(split_encoded)
+				if encoded_test_data is None:
+					encoded_test_data = np.zeros((n, split_encoded.shape[1]), dtype=np.float32)
+				encoded_test_data[offset:offset + split_encoded.shape[0]] = split_encoded
+				offset += split_encoded.shape[0]
 
-			encoded_test_data = np.concatenate(all_encoded_splits).astype('float32')
+			#encoded_test_data = np.concatenate(all_encoded_splits).astype('float32')
+			
 			print('encoded test data shape: %s' % str(encoded_test_data.shape))
 
 			#encoded_test_data = encoder.predict(test_data, batch_size = 8, verbose=True)
@@ -557,36 +563,38 @@ def fine_tune_from_vgg16_conv_trained_upper(do_test_predictions = False,
 def use_trained_models_on_test(model_filename, n_models = 3):
 
 
-	model = get_vgg16_pretrained_model(num_outputs = 10)
+	#model = get_vgg16_pretrained_model(num_outputs = 10)
+	model = vgg_std16_model(224, 224, 3)
 	model.compile(optimizer='sgd', loss='categorical_crossentropy')
 
-	splits = 10
+	splits = 4
 	n = 79726
 
 	yfull_test = np.zeros((n_models, n, 10))	
-	
+	ids = []#'test'] * n
+		
 	for split in range(splits):
 		print('running split %d' % split)
 		index_range = [int(split*n/splits),int((split+1)*n/splits)]
 		print(index_range)
 
 		split_test_data, split_ids = read_and_normalize_test_data(224, 224, 3, index_range = index_range)
-
+		ids += split_ids
 		print('split test data shape: %s' % str(split_test_data.shape))
 
 		for index in range(n_models):
 
-			fn = model_filename % (index+1)
+			fn = model_filename % (index)
 			print('loading model weights from %s' % fn)
 			model.load_weights(fn)
 
 
-			predictions = model.predict(split_test_data, batch_size = 8, verbose=True)
+			predictions = model.predict(split_test_data, batch_size = 2, verbose=True)
 			print('predictions shape: %s' % str(predictions.shape))
 			yfull_test[index, index_range[0]:index_range[1]] = predictions
 
-	test_res = merge_several_folds_mean(yfull_test, nfolds)
-	create_submission(test_res, test_id, 'vgg16_full_fine_tune_nmodels%d' % n_models)
+	test_res = merge_several_folds_mean(yfull_test, n_models)
+	create_submission(test_res, ids, 'vgg16_full_fine_tune_nmodels%d' % n_models)
 
 def main():
 
@@ -603,7 +611,7 @@ def main():
 	# print('got encoder')
 
 
-	if 1:
+	if 0:
 		# model_builder = create_logistic_model
 		# model_builder = create_mlp_model
 		model_builder = create_vgg16_dense_model2
@@ -619,10 +627,11 @@ def main():
 	elif 0:
 		fine_tune_from_vgg16_conv_trained_upper()
 
-	elif 0:
+	elif 1:
 		use_trained_models_on_test(
-			model_filename = 'overall_fine_tune/cachevgg16_finetune/full_fine_tune_weights_kfold_%d.h5',
-			n_models = 3)
+			#model_filename = 'overall_fine_tune/cachevgg16_finetune/full_fine_tune_weights_kfold_%d.h5',
+			model_filename = 'vgg16_full_models/fold%d.h5',
+			n_models = 1)
 
 if __name__ == "__main__":
 	main()

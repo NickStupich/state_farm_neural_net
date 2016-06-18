@@ -16,6 +16,7 @@ from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, \
                                        ZeroPadding2D
+from keras.callbacks import EarlyStopping, ModelCheckpoint	
 
 # from keras.layers.normalization import BatchNormalization
 # from keras.optimizers import Adam
@@ -26,11 +27,11 @@ from keras.models import model_from_json
 from numpy.random import permutation
 
 
-# mean_pixel = [103.939, 116.779, 123.68] #vgg16 paper
-mean_pixel = [95.079, 96.925, 80.067]   #train data mean
+mean_pixel = [103.939, 116.779, 123.68] #vgg16 paper
+#mean_pixel = [95.079, 96.925, 80.067]   #train data mean
 
 np.random.seed(2016)
-use_cache = 1
+use_cache = 0
 # color type: 1 - grey, 3 - rgb
 color_type_global = 3
 
@@ -154,7 +155,7 @@ def read_model(index, cross=''):
     json_name = 'architecture' + str(index) + cross + '.json'
     weight_name = 'model_weights' + str(index) + cross + '.h5'
     print('reading model. weights name: %s' % weight_name)
-    if 0:
+    if 1:
         model = model_from_json(open(os.path.join('cache', json_name)).read())
     else:
         #model = vgg_std16_model(224, 224, 3)
@@ -187,7 +188,7 @@ def create_submission(predictions, test_id, info):
 
 
 def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                              color_type=1, shuffle=False):
+                                              color_type=1, shuffle=True):
 
     cache_path = os.path.join('cache', 'train_r_' + str(img_rows) +
                               '_c_' + str(img_cols) + '_t_' +
@@ -297,11 +298,12 @@ def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
     return data, target, index
 
 def vgg_std16_model2(img_rows, img_cols, color_type):
-    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type)
-    model.layers.pop()
-    model.add(Dense(10, activation='softmax'))
+    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10)
+    #model.layers.pop()
+    #model.add(Dense(10, activation='softmax'))
     # Learning rate is changed to 0.001
-    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    model.summary()
+    sgd = SGD(lr=1e-5, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -356,8 +358,12 @@ def vgg_std16_model(img_rows, img_cols, color_type=1):
 
     # Code above loads pre-trained data and
     model.layers.pop()
+    model.outputs = [model.layers[-1].output]
+    model.layers[-1].outbound_nodes = []
+
     model.add(Dense(10, activation='softmax'))
     # Learning rate is changed to 0.001
+    model.summary()
     sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
@@ -368,7 +374,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     # Now it loads color image
     # input image dimensions
     img_rows, img_cols = 224, 224
-    batch_size = 1
+    batch_size = 2
     random_state = 20
 
     # ishuf_train_data = []
@@ -385,13 +391,14 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     #kf = KFold(len(unique_drivers), n_folds=nfolds,
                #shuffle=True, random_state=random_state)
     #for train_drivers, test_drivers in kf:
-    if 1:
+    if 0:
         train_data, train_target, driver_id, unique_drivers = \
             read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                                      color_type_global)
+                                                      color_type_global, shuffle=True)
+        print('training data mean: %f' % np.mean(train_data))
 
         for num_fold in range(nfolds):
-    	#    num_fold += 1
+	#    num_fold += 1
             print('Start KFold number {} from {}'.format(num_fold, nfolds))
             # print('Split train: ', len(X_train), len(Y_train))
             # print('Split valid: ', len(X_valid), len(Y_valid))
@@ -400,15 +407,23 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
             # model = create_model_v1(img_rows, img_cols, color_type_global)
             # model = vgg_bn_model(img_rows, img_cols, color_type_global)
             # model = get_trained_vgg16_model_2(img_rows, img_cols, color_type_global)
-            # model = vgg_std16_model(img_rows, img_cols, color_type_global)
-            model = vgg_std16_model2(img_rows, img_cols, color_type_global)
+            model = vgg_std16_model(img_rows, img_cols, color_type_global)
+            #model = vgg_std16_model2(img_rows, img_cols, color_type_global)
+            
+            weights_path = 'vgg16_full_models/fold%d.h5' % num_fold
+
+            callbacks = []
+            callbacks.append(EarlyStopping(monitor='val_loss', patience=2, verbose=0))
+            callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
+		
             
             model.fit(train_data, train_target, 
                     batch_size=batch_size,
                       nb_epoch=nb_epoch,
                       verbose=1,
                       validation_split=split, 
-                      shuffle=True)
+                      shuffle=True,
+                      callbacks=callbacks)
 
             # print('losses: ' + hist.history.losses[-1])
 
@@ -455,7 +470,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
 
         print('loaded %d models' % len(models))
 
-        splits = 10
+        splits = 5
         n = 79726
         for split in range(splits):
             print('running split %d' % split)
@@ -511,7 +526,7 @@ def test_model_and_submit(start=1, end=1, modelStr=''):
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(1, 5, 0.1, '_vgg_16_2x20')
+    run_cross_validation(1, 30, 0.1, '_vgg_16_2x20')
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)
