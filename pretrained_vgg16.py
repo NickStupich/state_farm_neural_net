@@ -31,7 +31,7 @@ mean_pixel = [103.939, 116.779, 123.68] #vgg16 paper
 #mean_pixel = [95.079, 96.925, 80.067]   #train data mean
 
 np.random.seed(2016)
-use_cache = 0
+use_cache = 1
 # color type: 1 - grey, 3 - rgb
 color_type_global = 3
 
@@ -355,7 +355,7 @@ def vgg_std16_model(img_rows, img_cols, color_type=1):
     model.add(Dense(1000, activation='softmax'))
 
     model.load_weights('vgg16_weights.h5')
-
+    
     # Code above loads pre-trained data and
     model.layers.pop()
     model.outputs = [model.layers[-1].output]
@@ -364,7 +364,7 @@ def vgg_std16_model(img_rows, img_cols, color_type=1):
     model.add(Dense(10, activation='softmax'))
     # Learning rate is changed to 0.001
     model.summary()
-    sgd = SGD(lr=1e-4, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=1e-5, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
@@ -497,6 +497,63 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     test_res = merge_several_folds_mean(yfull_test, nfolds)
     create_submission(test_res, test_id, info_string)
 
+def run_continuous_epochs(nb_epoch=20, split=0.1, modelStr=''):
+
+    img_rows, img_cols = 224, 224
+    batch_size = 2
+    random_state = 20
+
+    train_data, train_target, driver_id, unique_drivers = \
+        read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
+                                                  color_type_global, shuffle=True)
+
+    
+    for num_model in range(1000):
+
+        print('Start KFold number {} from {}'.format(num_model, 1000))
+        
+        model = vgg_std16_model(img_rows, img_cols, color_type_global)
+        weights_path = 'vgg16_full_models/continuous_fold%d.h5' % num_model
+
+        callbacks = []
+        callbacks.append(EarlyStopping(monitor='val_loss', patience=2, verbose=0))
+        callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
+    
+        
+        model.fit(train_data, train_target, 
+                batch_size=batch_size,
+                  nb_epoch=nb_epoch,
+                  verbose=1,
+                  validation_split=split, 
+                  shuffle=True,
+                  callbacks=callbacks)
+
+        model.load_weights(weights_path)
+
+        splits = 5
+        n = 79726
+        all_predictions = []
+        all_test_ids = []
+        for split in range(splits):
+            index_range = [int(split*n/splits),int((split+1)*n/splits)]
+
+            split_test_data, split_ids = read_and_normalize_test_data(img_rows, img_cols, color_type_global, index_range = index_range)
+            all_test_ids += split_ids
+            print('split test data shape: %s' % str(split_test_data.shape))
+
+            predictions = model.predict(split_test_data, batch_size = 2, verbose=True)
+            all_predictions += list(predictions)
+
+
+        info_string = 'loss_' + modelStr \
+                      + '_r_' + str(img_rows) \
+                      + '_c_' + str(img_cols) \
+                      + '_model_num_' + str(num_model)
+
+        print('creating submission file %s' % info_string)
+
+        create_submission(all_predictions, all_test_ids, info_string)
+
 
 def test_model_and_submit(start=1, end=1, modelStr=''):
     img_rows, img_cols = 224, 224
@@ -526,7 +583,9 @@ def test_model_and_submit(start=1, end=1, modelStr=''):
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(1, 30, 0.1, '_vgg_16_2x20')
+    # run_cross_validation(1, 30, 0.1, '_vgg_16_2x20')
+
+    run_continuous_epochs(modelStr = 'continuous_runs_1')
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)
