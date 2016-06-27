@@ -364,7 +364,7 @@ def vgg_std16_model(img_rows, img_cols, color_type=1):
     model.add(Dense(10, activation='softmax'))
     # Learning rate is changed to 0.001
     model.summary()
-    sgd = SGD(lr=1e-5, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=2e-5, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
@@ -516,7 +516,7 @@ def run_continuous_epochs(nb_epoch=20, split=0.1, modelStr=''):
         weights_path = 'vgg16_full_models/continuous_fold%d.h5' % num_model
 
         callbacks = []
-        callbacks.append(EarlyStopping(monitor='val_loss', patience=2, verbose=0))
+        callbacks.append(EarlyStopping(monitor='val_loss', verbose=0))
         callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
     
         
