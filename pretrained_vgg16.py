@@ -303,7 +303,7 @@ def vgg_std16_model2(img_rows, img_cols, color_type):
     #model.add(Dense(10, activation='softmax'))
     # Learning rate is changed to 0.001
     model.summary()
-    sgd = SGD(lr=1e-5, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=2e-5, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -497,10 +497,10 @@ def run_cross_validation(nfolds=10, nb_epoch=10, split=0.2, modelStr=''):
     test_res = merge_several_folds_mean(yfull_test, nfolds)
     create_submission(test_res, test_id, info_string)
 
-def run_continuous_epochs(nb_epoch=20, split=0.1, modelStr=''):
+def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr=''):
 
     img_rows, img_cols = 224, 224
-    batch_size = 2
+    batch_size = 32
     random_state = 20
 
     train_data, train_target, driver_id, unique_drivers = \
@@ -512,7 +512,8 @@ def run_continuous_epochs(nb_epoch=20, split=0.1, modelStr=''):
 
         print('Start KFold number {} from {}'.format(num_model, 1000))
         
-        model = vgg_std16_model(img_rows, img_cols, color_type_global)
+        #model = vgg_std16_model(img_rows, img_cols, color_type_global)
+        model = vgg_std16_model2(img_rows, img_cols, color_type_global)
         weights_path = 'vgg16_full_models/continuous_fold%d.h5' % num_model
 
         callbacks = []
@@ -524,7 +525,7 @@ def run_continuous_epochs(nb_epoch=20, split=0.1, modelStr=''):
                 batch_size=batch_size,
                   nb_epoch=nb_epoch,
                   verbose=1,
-                  validation_split=split, 
+                  validation_split=val_split, 
                   shuffle=True,
                   callbacks=callbacks)
 
@@ -541,7 +542,7 @@ def run_continuous_epochs(nb_epoch=20, split=0.1, modelStr=''):
             all_test_ids += split_ids
             print('split test data shape: %s' % str(split_test_data.shape))
 
-            predictions = model.predict(split_test_data, batch_size = 2, verbose=True)
+            predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
             all_predictions += list(predictions)
 
 
@@ -585,7 +586,7 @@ if __name__ == "__main__":
     # nfolds, nb_epoch, split
     # run_cross_validation(1, 30, 0.1, '_vgg_16_2x20')
 
-    run_continuous_epochs(modelStr = 'continuous_runs_1')
+    run_continuous_epochs(modelStr = 'continuous_runs_2')
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)
