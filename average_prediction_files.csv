@@ -1,0 +1,9 @@
+import pandas
+
+filenames = ["/home/vagrant/Desktop/submission_loss_continuous_runs_1_r_224_c_224_model_num_0_2016-06-28-14-29.csv, 
+	"/home/vagrant/Desktop/submission_loss_continuous_runs_1_r_224_c_224_model_num_1_2016-06-28-15-38.csv"
+	]
+
+for filename in filenames:
+	pd = pandas.read_csv(filename)
+	print(pd)

@@ -74,7 +74,6 @@ def set_vgg16_model_2_weights(model, set_last_layer = True):
             model_k += 1
     f.close()
 
-
 def get_trained_vgg16_model_2(img_rows, img_cols, color_type, output_size = 1000):
     model = Sequential()
     model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', input_shape=(color_type,img_rows, img_cols)))
