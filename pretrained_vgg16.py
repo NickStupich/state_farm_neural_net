@@ -57,7 +57,6 @@ def get_im(path, img_rows, img_cols, color_type=1):
     # resized = np.expand_dims(img, axis=0)
     return resized
 
-
 def get_driver_data():
     dr = dict()
     path = os.path.join('driver_imgs_list.csv')
@@ -72,7 +71,6 @@ def get_driver_data():
         dr[arr[2]] = arr[0]
     f.close()
     return dr
-
 
 def load_train(img_rows, img_cols, color_type=1):
     X_train = []
@@ -99,7 +97,6 @@ def load_train(img_rows, img_cols, color_type=1):
     print(unique_drivers)
     return X_train, y_train, driver_id, unique_drivers
 
-
 def load_test(img_rows, img_cols, color_type=1):
     print('Read test images')
     path = os.path.join('test', '*.jpg')
@@ -119,7 +116,6 @@ def load_test(img_rows, img_cols, color_type=1):
 
     return X_test, X_test_id
 
-
 def cache_data(data, path):
     if not os.path.isdir('cache'):
         os.mkdir('cache')
@@ -130,7 +126,6 @@ def cache_data(data, path):
     else:
         print('Directory doesnt exists')
 
-
 def restore_data(path):
     data = dict()
     if os.path.isfile(path):
@@ -138,7 +133,6 @@ def restore_data(path):
         file = open(path, 'rb')
         data = pickle.load(file)
     return data
-
 
 def save_model(model, index, cross=''):
     json_string = model.to_json()
@@ -148,7 +142,6 @@ def save_model(model, index, cross=''):
     weight_name = 'model_weights' + str(index) + cross + '.h5'
     open(os.path.join('cache', json_name), 'w').write(json_string)
     model.save_weights(os.path.join('cache', weight_name), overwrite=True)
-
 
 def read_model(index, cross=''):
     
@@ -164,7 +157,6 @@ def read_model(index, cross=''):
     model.load_weights(os.path.join('cache', weight_name))
     return model
 
-
 def split_validation_set(train, target, test_size):
     random_state = 51
     X_train, X_test, y_train, y_test = \
@@ -172,7 +164,6 @@ def split_validation_set(train, target, test_size):
                          test_size=test_size,
                          random_state=random_state)
     return X_train, X_test, y_train, y_test
-
 
 def create_submission(predictions, test_id, info):
     result1 = pd.DataFrame(predictions, columns=['c0', 'c1', 'c2', 'c3',
@@ -185,7 +176,6 @@ def create_submission(predictions, test_id, info):
     suffix = info + '_' + str(now.strftime("%Y-%m-%d-%H-%M"))
     sub_file = os.path.join('subm', 'submission_' + suffix + '.csv')
     result1.to_csv(sub_file, index=False)
-
 
 def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
                                               color_type=1, shuffle=True):
@@ -200,7 +190,7 @@ def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
         cache_data((train_data, train_target, driver_id, unique_drivers),
                    cache_path)
     else:
-        print('Restore train from cache!')
+        print('Restore train from cache: %s' % cache_path)
         (train_data, train_target, driver_id, unique_drivers) = \
             restore_data(cache_path)
 
@@ -224,9 +214,8 @@ def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
         train_target = train_target[perm]
         
     print('Train shape:', train_data.shape)
-    print(train_data.shape[0], 'train samples')
+    print('Train mean: ', np.mean(train_data, axis=1))
     return train_data, train_target, driver_id, unique_drivers
-
 
 def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index_range=None):
     cache_path = os.path.join('cache', 'test_r_' + str(img_rows) +
@@ -236,7 +225,7 @@ def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index
         test_data, test_id = load_test(img_rows, img_cols, color_type)
         cache_data((test_data, test_id), cache_path)
     else:
-        print('Restore test from cache!')
+        print('Restore test from cache: %s' % cache_path)
         (test_data, test_id) = restore_data(cache_path)
 
     test_data = np.array(test_data, dtype=np.uint8)
@@ -256,16 +245,14 @@ def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index
         test_data[:, c, :, :] = test_data[:, c, :, :] - mean_pixel[c]
     # test_data /= 255
     print('Test shape:', test_data.shape)
-    print(test_data.shape[0], 'test samples')
+    print('Test mean: %s' % np.mean(test_data, axis=1))
     return test_data, test_id
-
 
 def dict_to_list(d):
     ret = []
     for i in d.items():
         ret.append(i[1])
     return ret
-
 
 def merge_several_folds_mean(data, nfolds):
     a = np.array(data[0])
@@ -274,14 +261,12 @@ def merge_several_folds_mean(data, nfolds):
     a /= nfolds
     return a.tolist()
 
-
 def merge_several_folds_geom(data, nfolds):
     a = np.array(data[0])
     for i in range(1, nfolds):
         a *= np.array(data[i])
     a = np.power(a, 1/nfolds)
     return a.tolist()
-
 
 def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
     data = []
@@ -308,112 +293,54 @@ def vgg_std16_model2(img_rows, img_cols, color_type):
 
     return model
 
-def vgg_std16_model(img_rows, img_cols, color_type=1):
-    model = Sequential()
-    model.add(ZeroPadding2D((1, 1), input_shape=(color_type,
-                                                 img_rows, img_cols)))
-    model.add(Convolution2D(64, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(64, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, img_cols = 224, batch_size=8, random_state=20):
+    train_data, train_target, driver_id, unique_drivers = \
+        read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
+                                                  color_type_global, shuffle=False)
 
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(128, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(128, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(512, 3, 3, activation='relu'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-    model.add(Flatten())
-    model.add(Dense(4096, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(4096, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(1000, activation='softmax'))
-
-    model.load_weights('vgg16_weights.h5')
+    kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
     
-    # Code above loads pre-trained data and
-    model.layers.pop()
-    model.outputs = [model.layers[-1].output]
-    model.layers[-1].outbound_nodes = []
+    for num_fold, (train_drivers, test_drivers) in enumerate(kf):
+        model = vgg_std16_model2(img_rows, img_cols, color_type_global)
 
-    model.add(Dense(10, activation='softmax'))
-    # Learning rate is changed to 0.001
-    model.summary()
-    sgd = SGD(lr=2e-5, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
+        unique_list_train = [unique_drivers[i] for i in train_drivers]
+        X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
+        unique_list_valid = [unique_drivers[i] for i in test_drivers]
+        X_valid, Y_valid, test_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
+
+        print('Start KFold number {} from {}'.format(num_fold, nfolds))
+        print('Split train: ', len(X_train), len(Y_train))
+        print('Split valid: ', len(X_valid), len(Y_valid))
+        print('Train drivers: ', unique_list_train)
+        print('Test drivers: ', unique_list_valid)
+
+        
+        weights_path = 'vgg16_xval_models/fold%d.h5' % num_fold
+
+        callbacks = []
+        callbacks.append(EarlyStopping(monitor='val_loss', verbose=0))
+        callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
+    
+        
+        model.fit(X_train, Y_train, 
+                batch_size=batch_size,
+                  nb_epoch=nb_epoch,
+                  verbose=1,
+                  validation_data=(X_valid, Y_valid),
+                  shuffle=True,
+                  callbacks=callbacks)
+
+        save_model(model, num_fold, modelStr)
+
 
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
     img_rows, img_cols = 224, 224
     batch_size = 8
-    random_state = 20
+    random_state = 21
 
-    if 0:
-        train_data, train_target, driver_id, unique_drivers = \
-            read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                                      color_type_global, shuffle=False)
-
-        kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
-        
-        for num_fold, (train_drivers, test_drivers) in enumerate(kf):
-            model = vgg_std16_model2(img_rows, img_cols, color_type_global)
-
-            unique_list_train = [unique_drivers[i] for i in train_drivers]
-            X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
-            unique_list_valid = [unique_drivers[i] for i in test_drivers]
-            X_valid, Y_valid, test_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
-
-            print('Start KFold number {} from {}'.format(num_fold, nfolds))
-            print('Split train: ', len(X_train), len(Y_train))
-            print('Split valid: ', len(X_valid), len(Y_valid))
-            print('Train drivers: ', unique_list_train)
-            print('Test drivers: ', unique_list_valid)
-
-            
-            weights_path = 'vgg16_xval_models/fold%d.h5' % num_fold
-
-            callbacks = []
-            callbacks.append(EarlyStopping(monitor='val_loss', verbose=0))
-            callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
-    	
-            
-            model.fit(X_train, Y_train, 
-                    batch_size=batch_size,
-                      nb_epoch=nb_epoch,
-                      verbose=1,
-                      validation_data=(X_valid, Y_valid),
-                      shuffle=True,
-                      callbacks=callbacks)
-
-            save_model(model, num_fold, modelStr)
-
-
+    if 1:
+        cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state)
 
     print('Start testing............')
 
@@ -477,7 +404,6 @@ def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr=''):
 
         print('Start KFold number {} from {}'.format(num_model, 1000))
         
-        #model = vgg_std16_model(img_rows, img_cols, color_type_global)
         model = vgg_std16_model2(img_rows, img_cols, color_type_global)
         weights_path = 'vgg16_full_models/continuous_fold%d.h5' % num_model
 
@@ -520,36 +446,9 @@ def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr=''):
 
         create_submission(all_predictions, all_test_ids, info_string)
 
-
-def test_model_and_submit(start=1, end=1, modelStr=''):
-    img_rows, img_cols = 224, 224
-    # batch_size = 64
-    # random_state = 51
-    nb_epoch = 15
-
-    print('Start testing............')
-    test_data, test_id = read_and_normalize_test_data(img_rows, img_cols,
-                                                      color_type_global)
-    yfull_test = []
-
-    for index in range(start, end + 1):
-        # Store test predictions
-        model = read_model(index, modelStr)
-        test_prediction = model.predict(test_data, batch_size=128, verbose=1)
-        yfull_test.append(test_prediction)
-
-    info_string = 'loss_' + modelStr \
-                  + '_r_' + str(img_rows) \
-                  + '_c_' + str(img_cols) \
-                  + '_folds_' + str(end - start + 1) \
-                  + '_ep_' + str(nb_epoch)
-
-    test_res = merge_several_folds_mean(yfull_test, end - start + 1)
-    create_submission(test_res, test_id, info_string)
-
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(4, 20, '_vgg_16_2x20')
+    run_cross_validation(2, 20, '_vgg_16_2x20')
 
     #run_continuous_epochs(modelStr = 'continuous_runs_2')
 
