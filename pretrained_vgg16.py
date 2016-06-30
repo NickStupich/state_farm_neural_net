@@ -303,7 +303,7 @@ def vgg_std16_model2(img_rows, img_cols, color_type):
     #model.add(Dense(10, activation='softmax'))
     # Learning rate is changed to 0.001
     model.summary()
-    sgd = SGD(lr=2e-5, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=1e-6, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -371,48 +371,47 @@ def vgg_std16_model(img_rows, img_cols, color_type=1):
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
     img_rows, img_cols = 224, 224
-    batch_size = 16
+    batch_size = 8
     random_state = 20
-    num_fold = 0
 
-    train_data, train_target, driver_id, unique_drivers = \
-        read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                                  color_type_global, shuffle=False)
+    if 0:
+        train_data, train_target, driver_id, unique_drivers = \
+            read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
+                                                      color_type_global, shuffle=False)
 
-    kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
-    
-    for num_fold in range(nfolds):
-        model = vgg_std16_model2(img_rows, img_cols, color_type_global)
-
-        unique_list_train = [unique_drivers[i] for i in train_drivers]
-        X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
-        unique_list_valid = [unique_drivers[i] for i in test_drivers]
-        X_valid, Y_valid, test_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
-
-        num_fold += 1
-        print('Start KFold number {} from {}'.format(num_fold, nfolds))
-        print('Split train: ', len(X_train), len(Y_train))
-        print('Split valid: ', len(X_valid), len(Y_valid))
-        print('Train drivers: ', unique_list_train)
-        print('Test drivers: ', unique_list_valid)
-
+        kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
         
-        weights_path = 'vgg16_xval_models/fold%d.h5' % num_fold
+        for num_fold, (train_drivers, test_drivers) in enumerate(kf):
+            model = vgg_std16_model2(img_rows, img_cols, color_type_global)
 
-        callbacks = []
-        callbacks.append(EarlyStopping(monitor='val_loss', verbose=0))
-        callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
-	
-        
-        model.fit(X_train, Y_train, 
-                batch_size=batch_size,
-                  nb_epoch=nb_epoch,
-                  verbose=1,
-                  validation_data=(X_valid, Y_valid),
-                  shuffle=True,
-                  callbacks=callbacks)
+            unique_list_train = [unique_drivers[i] for i in train_drivers]
+            X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
+            unique_list_valid = [unique_drivers[i] for i in test_drivers]
+            X_valid, Y_valid, test_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
 
-        save_model(model, num_fold, modelStr)
+            print('Start KFold number {} from {}'.format(num_fold, nfolds))
+            print('Split train: ', len(X_train), len(Y_train))
+            print('Split valid: ', len(X_valid), len(Y_valid))
+            print('Train drivers: ', unique_list_train)
+            print('Test drivers: ', unique_list_valid)
+
+            
+            weights_path = 'vgg16_xval_models/fold%d.h5' % num_fold
+
+            callbacks = []
+            callbacks.append(EarlyStopping(monitor='val_loss', verbose=0))
+            callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
+    	
+            
+            model.fit(X_train, Y_train, 
+                    batch_size=batch_size,
+                      nb_epoch=nb_epoch,
+                      verbose=1,
+                      validation_data=(X_valid, Y_valid),
+                      shuffle=True,
+                      callbacks=callbacks)
+
+            save_model(model, num_fold, modelStr)
 
 
 
@@ -449,7 +448,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
         for index in range(nfolds):
             model = models[index]
-            predictions = model.predict(split_test_data, batch_size = 2, verbose=True)
+            predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
             print('predictions shape: %s' % str(predictions.shape))
             yfull_test[index, index_range[0]:index_range[1]] = predictions
 
