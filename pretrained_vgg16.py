@@ -57,6 +57,19 @@ def get_im(path, img_rows, img_cols, color_type=1):
     # resized = np.expand_dims(img, axis=0)
     return resized
 
+def get_im_cv2_transform(path, img_rows, img_cols, color_type=1):
+    # Load as grayscale
+    if color_type == 1:
+        img = cv2.imread(path, 0)
+    else:
+        img = cv2.imread(path)
+    # Reduce size
+    rotate = np.random.uniform(-10, 10)
+    M = cv2.getRotationMatrix2D((img.shape[1]/2, img.shape[0]/2), rotate, 1)
+    img = cv2.warpAffine(img, M, (img.shape[1], img.shape[0]))
+    resized = cv2.resize(img, (img_cols, img_rows), cv2.INTER_LINEAR)
+    return resized
+
 def get_driver_data():
     dr = dict()
     path = os.path.join('driver_imgs_list.csv')
@@ -72,7 +85,7 @@ def get_driver_data():
     f.close()
     return dr
 
-def load_train(img_rows, img_cols, color_type=1):
+def load_train(img_rows, img_cols, color_type=1, transform=True):
     X_train = []
     y_train = []
     driver_id = []
@@ -87,7 +100,10 @@ def load_train(img_rows, img_cols, color_type=1):
         files = glob.glob(path)
         for fl in files:
             flbase = os.path.basename(fl)
-            img = get_im(fl, img_rows, img_cols, color_type)
+            if transform:
+                img = get_im_cv2_transform(fl, img_rows, img_cols, color_type)
+            else:
+                img = get_im(fl, img_rows, img_cols, color_type)
             X_train.append(img)
             y_train.append(j)
             driver_id.append(driver_data[flbase])
@@ -97,7 +113,7 @@ def load_train(img_rows, img_cols, color_type=1):
     print(unique_drivers)
     return X_train, y_train, driver_id, unique_drivers
 
-def load_test(img_rows, img_cols, color_type=1):
+def load_test(img_rows, img_cols, color_type=1, transform=True):
     print('Read test images')
     path = os.path.join('test', '*.jpg')
     files = glob.glob(path)
@@ -107,7 +123,10 @@ def load_test(img_rows, img_cols, color_type=1):
     thr = math.floor(len(files)/10)
     for fl in files:
         flbase = os.path.basename(fl)
-        img = get_im(fl, img_rows, img_cols, color_type)
+        if transform:
+            img = get_im_cv2_transform(fl, img_rows, img_cols, color_type)
+        else:
+            img = get_im(fl, img_rows, img_cols, color_type)
         X_test.append(img)
         X_test_id.append(flbase)
         total += 1
@@ -178,11 +197,12 @@ def create_submission(predictions, test_id, info):
     result1.to_csv(sub_file, index=False)
 
 def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                              color_type=1, shuffle=True):
+                                              color_type=1, shuffle=True, transform=True):
 
     cache_path = os.path.join('cache', 'train_r_' + str(img_rows) +
                               '_c_' + str(img_cols) + '_t_' +
-                              str(color_type) + '.dat')
+                              str(color_type) + ('transform' if transform else '') + '.dat')
+    print(cache_path)
 
     if not os.path.isfile(cache_path) or use_cache == 0:
         train_data, train_target, driver_id, unique_drivers = \
@@ -214,13 +234,13 @@ def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
         train_target = train_target[perm]
         
     print('Train shape:', train_data.shape)
-    print('Train mean: ', np.mean(train_data, axis=1))
+    print('Train mean: ', np.mean(train_data))
     return train_data, train_target, driver_id, unique_drivers
 
-def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index_range=None):
+def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index_range=None, transform=True):
     cache_path = os.path.join('cache', 'test_r_' + str(img_rows) +
                               '_c_' + str(img_cols) + '_t_' +
-                              str(color_type) + '.dat')
+                              str(color_type) + 'transform' if transform else '' +  '.dat')
     if not os.path.isfile(cache_path) or use_cache == 0:
         test_data, test_id = load_test(img_rows, img_cols, color_type)
         cache_data((test_data, test_id), cache_path)
@@ -245,7 +265,7 @@ def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index
         test_data[:, c, :, :] = test_data[:, c, :, :] - mean_pixel[c]
     # test_data /= 255
     print('Test shape:', test_data.shape)
-    print('Test mean: %s' % np.mean(test_data, axis=1))
+    print('Test mean: %s' % np.mean(test_data, axis=(0, 2, 3)))
     return test_data, test_id
 
 def dict_to_list(d):
@@ -284,11 +304,9 @@ def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
 
 def vgg_std16_model2(img_rows, img_cols, color_type):
     model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10)
-    #model.layers.pop()
-    #model.add(Dense(10, activation='softmax'))
-    # Learning rate is changed to 0.001
+
     model.summary()
-    sgd = SGD(lr=1e-6, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=1e-5, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -330,8 +348,10 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
                   shuffle=True,
                   callbacks=callbacks)
 
-        save_model(model, num_fold, modelStr)
+        #reload the best epoch
+        model.load_weights(weights_path)
 
+        save_model(model, num_fold, modelStr)
 
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
@@ -389,11 +409,10 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
     test_res = merge_several_folds_mean(yfull_test, nfolds)
     create_submission(test_res, test_id, info_string)
 
-def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr=''):
+def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr='', random_state = 20):
 
     img_rows, img_cols = 224, 224
-    batch_size = 16
-    random_state = 20
+    batch_size = 8
 
     train_data, train_target, driver_id, unique_drivers = \
         read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
@@ -448,9 +467,16 @@ def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr=''):
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    run_cross_validation(2, 20, '_vgg_16_2x20')
+    #run_cross_validation(13, 20, '_vgg_16_13x20')
 
-    #run_continuous_epochs(modelStr = 'continuous_runs_2')
+
+    for random_state in range(100):
+        try:
+            run_continuous_epochs(modelStr = 'continuous_runs_rotate', random_state = random_state)
+        except Exception as inst:
+            print("Caught exception: %s" % str(inst))
+
+
 
     # nb_epoch, split
     # run_one_fold_cross_validation(10, 0.1)
