@@ -18,8 +18,8 @@ img_rows, img_cols = 224, 224
 
 horizontal_flip = True
 rotation_range = 20
-width_shift_range = 0.2
-height_shift_range = 0.2
+width_shift_range = 0.1
+height_shift_range = 0.1
 samples_per_epoch = 5000
 
 
@@ -42,6 +42,15 @@ def get_cached_train_data():
 
 	print('done loading train data')
 	return result
+
+def vgg_std16_model(img_rows, img_cols, color_type):
+    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10)
+
+    model.summary()
+    sgd = SGD(lr=1e-6, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    return model
 
 def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, img_cols = 224, batch_size=8, random_state=20):
     train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
@@ -67,8 +76,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
         weights_path = 'vgg16_generator_xval_models/fold%d.h5' % num_fold
 
-        model = pretrained_vgg16.vgg_std16_model2(img_rows, img_cols, color_type_global)
-
+        model = vgg_std16_model(img_rows, img_cols, color_type_global)
 
         train_datagen = ImageDataGenerator(
 			rotation_range=rotation_range,
