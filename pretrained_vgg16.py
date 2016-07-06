@@ -240,7 +240,7 @@ def read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
 def read_and_normalize_test_data(img_rows=224, img_cols=224, color_type=1, index_range=None, transform=True):
     cache_path = os.path.join('cache', 'test_r_' + str(img_rows) +
                               '_c_' + str(img_cols) + '_t_' +
-                              str(color_type) + 'transform' if transform else '' +  '.dat')
+                              str(color_type) + ('transform' if transform else '') +  '.dat')
     if not os.path.isfile(cache_path) or use_cache == 0:
         test_data, test_id = load_test(img_rows, img_cols, color_type)
         cache_data((test_data, test_id), cache_path)
@@ -306,7 +306,7 @@ def vgg_std16_model2(img_rows, img_cols, color_type):
     model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10)
 
     model.summary()
-    sgd = SGD(lr=1e-5, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=2e-6, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -467,14 +467,15 @@ def run_continuous_epochs(nb_epoch=20, val_split=0.1, modelStr='', random_state 
 
 if __name__ == "__main__":
     # nfolds, nb_epoch, split
-    #run_cross_validation(13, 20, '_vgg_16_13x20')
+    run_cross_validation(13, 20, '_vgg_16_13x20')
 
 
-    for random_state in range(100):
-        try:
-            run_continuous_epochs(modelStr = 'continuous_runs_rotate', random_state = random_state)
-        except Exception as inst:
-            print("Caught exception: %s" % str(inst))
+    if 0:
+        for random_state in range(100):
+            try:
+                run_continuous_epochs(modelStr = 'continuous_runs_rotate', random_state = random_state)
+            except Exception as inst:
+                print("Caught exception: %s" % str(inst))
 
 
 

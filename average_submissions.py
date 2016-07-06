@@ -1,12 +1,6 @@
 import pandas
 
-filenames = ["subm/submission_loss_continuous_runs_1_r_224_c_224_model_num_0_2016-06-28-14-29.csv",
-		     "subm/submission_loss_continuous_runs_1_r_224_c_224_model_num_3_2016-06-28-17-28.csv", 
-		     "subm/submission_loss_continuous_runs_1_r_224_c_224_model_num_1_2016-06-28-15-38.csv",
-		     "subm/submission_loss_continuous_runs_1_r_224_c_224_model_num_4_2016-06-28-18-23.csv", 
-		     "subm/submission_loss_continuous_runs_1_r_224_c_224_model_num_2_2016-06-28-16-46.csv",
-		     "subm/submission_loss_continuous_runs_2_r_224_c_224_model_num_0_2016-06-29-01-09.csv"
-	]
+filenames = ["subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_0_2016-07-01-18-38.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_1_2016-07-01-19-52.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_2_2016-07-01-20-57.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_3_2016-07-01-22-11.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_4_2016-07-01-23-17.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_5_2016-07-02-00-07.csv"]
 
 dfs = []
 
