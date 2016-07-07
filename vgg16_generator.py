@@ -20,12 +20,12 @@ img_rows, img_cols = 224, 224
 
 horizontal_flip = False
 rotation_range = 20
-width_shift_range = 0.05
-height_shift_range = 0.05
+width_shift_range = 0.1
+height_shift_range = 0.1
 samples_per_epoch = -1
 shear_range = 10.0 / (180.0 / np.pi)
 zoom_range = 0.1
-channel_shift_range=10.
+channel_shift_range=20.
 
 from vgg16_efficiency import get_trained_vgg16_model_2
 
@@ -53,7 +53,7 @@ def vgg_std16_model(img_rows, img_cols, color_type):
     model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10)
 
     #model.summary()
-    sgd = SGD(lr=5e-6, decay=1e-6, momentum=0.9, nesterov=True)
+    sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -68,6 +68,12 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
         kf = range(nfolds)
 
     for num_fold, drivers in enumerate(kf):
+
+        model_path = os.path.join('cache', 'model_weights' + str(num_fold) + modelStr + '.h5')
+        if os.path.isfile(model_path):
+            print('already trained this fold, skipping...')
+            continue
+
         print('Start KFold number {} from {}'.format(num_fold, nfolds))
 
         if driver_split:
@@ -96,7 +102,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 		)
 
         callbacks = []
-        callbacks.append(EarlyStopping(monitor='val_loss', patience=5, verbose=0))
+        callbacks.append(EarlyStopping(monitor='val_loss', patience=1, verbose=0))
         callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
 
         if driver_split:
@@ -132,7 +138,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
-    batch_size = 8
+    batch_size = 48
     random_state = 20
 
     driver_split=False
@@ -142,7 +148,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
     else:
         modelStr += '_randomSplit'
 
-    if 0:
+    if 1:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = False)
 
     print('Start testing............')
@@ -193,7 +199,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
 def main():
     generator_specs = ''
-    run_cross_validation(4, 20, '_vgg_16_generator')
+    run_cross_validation(4, 20, '_vgg_16_generator2')
 
 if __name__ == "__main__":
 	main()
