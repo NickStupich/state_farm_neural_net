@@ -74,7 +74,7 @@ def set_vgg16_model_2_weights(model, set_last_layer = True):
             model_k += 1
     f.close()
 
-def get_trained_vgg16_model_2(img_rows, img_cols, color_type, output_size = 1000):
+def get_trained_vgg16_model_2(img_rows, img_cols, color_type, output_size = 1000, load_weights=True):
     model = Sequential()
     model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', input_shape=(color_type,img_rows, img_cols)))
     model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same'))
@@ -107,7 +107,8 @@ def get_trained_vgg16_model_2(img_rows, img_cols, color_type, output_size = 1000
     model.add(Dense(output_size, activation='softmax'))
 
     set_last_layer = (output_size == 1000)
-    set_vgg16_model_2_weights(model, set_last_layer = set_last_layer)
+    if load_weights:
+        set_vgg16_model_2_weights(model, set_last_layer = set_last_layer)
 
     return model
 

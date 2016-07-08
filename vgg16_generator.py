@@ -20,12 +20,12 @@ img_rows, img_cols = 224, 224
 
 horizontal_flip = False
 rotation_range = 20
-width_shift_range = 0.1
-height_shift_range = 0.1
+width_shift_range = 0.05
+height_shift_range = 0.05
 samples_per_epoch = -1
 shear_range = 10.0 / (180.0 / np.pi)
 zoom_range = 0.1
-channel_shift_range=20.
+channel_shift_range=10.
 
 from vgg16_efficiency import get_trained_vgg16_model_2
 
@@ -50,7 +50,7 @@ def get_cached_train_data():
 	return result
 
 def vgg_std16_model(img_rows, img_cols, color_type):
-    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10)
+    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10, load_weights=True)
 
     #model.summary()
     sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
@@ -139,7 +139,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
     batch_size = 48
-    random_state = 20
+    random_state = 21
 
     driver_split=False
 
@@ -199,7 +199,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
 def main():
     generator_specs = ''
-    run_cross_validation(4, 20, '_vgg_16_generator2')
+    run_cross_validation(4, 20, '_vgg_16_generator3')
 
 if __name__ == "__main__":
 	main()
