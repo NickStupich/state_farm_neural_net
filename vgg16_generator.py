@@ -3,6 +3,8 @@ import os
 import datetime
 import pandas as pd
 import pickle
+import sys
+import math
 
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
@@ -136,7 +138,41 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
         pretrained_vgg16.save_model(model, num_fold, modelStr)
 
-def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
+def generator_test_predict(model, test_data, batch_size=32, num_samples=4, generator_batch_size = 2**12):
+    test_ids = np.arange(len(test_data)) #to put things back together after
+
+    all_predictions = np.zeros((len(test_data), num_samples, 10))
+
+    test_datagen = ImageDataGenerator(
+                    rotation_range=rotation_range/2.0,
+                    width_shift_range=width_shift_range/2.0,
+                    height_shift_range=height_shift_range/2.0,
+                    shear_range = shear_range/2.0,
+                    zoom_range = zoom_range/2.0,
+		channel_shift_range=channel_shift_range/2.0,	
+	)
+
+    test_flow = test_datagen.flow(test_data, test_ids, batch_size=generator_batch_size)
+    num_generator_batches = math.ceil(len(test_data) / generator_batch_size)
+
+    for n_sample in range(num_samples):
+        print('\nrunning random test sample %d / %d' % (n_sample, num_samples))
+        for i, (batch_data, batch_ids) in enumerate(test_flow):
+            preds = model.predict(batch_data, batch_size=batch_size, verbose=True)
+            all_predictions[batch_ids, n_sample] = preds
+            print('%d / %s' % (i, num_generator_batches))
+            if i == (num_generator_batches-1):
+                break
+
+    predictions = np.mean(all_predictions, axis=1)
+    print('different predictions average std dev: %s' % np.mean(np.std(all_predictions, axis=1, ddof=1)))
+    print(all_predictions.shape)
+    print(predictions.shape)
+
+    return predictions
+
+
+def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
 
     batch_size = 48
     random_state = 21
@@ -148,7 +184,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
     else:
         modelStr += '_randomSplit'
 
-    if 1:
+    if 0:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = False)
 
     print('Start testing............')
@@ -181,10 +217,13 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
         for index in range(nfolds):
             model = models[index]
-            predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
+            #predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
+            predictions = generator_test_predict(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
             print('predictions shape: %s' % str(predictions.shape))
             yfull_test[index, index_range[0]:index_range[1]] = predictions
 
+    if num_test_samples > 1:
+        modelStr += '_testaugment%d' % num_test_samples
 
     info_string = 'loss_' + modelStr \
                   + '_r_' + str(img_rows) \
@@ -198,8 +237,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr=''):
 
 
 def main():
+    num_test_samples = 10
     generator_specs = ''
-    run_cross_validation(4, 20, '_vgg_16_generator3')
+    run_cross_validation(4, 20, '_vgg_16_generator', num_test_samples = num_test_samples)
 
 if __name__ == "__main__":
 	main()

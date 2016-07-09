@@ -1,7 +1,10 @@
 import pandas
 
-filenames = ["subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_0_2016-07-01-18-38.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_1_2016-07-01-19-52.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_2_2016-07-01-20-57.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_3_2016-07-01-22-11.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_4_2016-07-01-23-17.csv","subm/submission_loss_continuous_runs_rotate_r_224_c_224_model_num_5_2016-07-02-00-07.csv"]
-
+filenames = ["subm/submission_loss__vgg_16_generator_randomSplit_testaugment10_r_224_c_224_folds_4_ep_20_2016-07-09-05-53.csv",
+			 "subm/submission_loss__vgg_16_generator_randomSplit_r_224_c_224_folds_4_ep_20_2016-07-07-08-45.csv",
+			 "subm/submission_loss__vgg_16_generator3_randomSplit_r_224_c_224_folds_4_ep_20_2016-07-08-09-19.csv"
+	]
+	
 dfs = []
 
 for filename in filenames:
