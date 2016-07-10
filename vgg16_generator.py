@@ -27,9 +27,11 @@ height_shift_range = 0.05
 samples_per_epoch = -1
 shear_range = 10.0 / (180.0 / np.pi)
 zoom_range = 0.1
-channel_shift_range=10.
+channel_shift_range=20.
 
-from vgg16_efficiency import get_trained_vgg16_model_2
+learning_rates = [1e-3]
+
+from vgg16_efficiency import get_trained_vgg16_model_2, set_vgg16_model_2_weights
 
 def get_cached_train_data():
 	fn_data = 'cache/cached_224x224x3_train_data.npy'
@@ -61,13 +63,18 @@ def vgg_std16_model(img_rows, img_cols, color_type):
     return model
 
 def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, img_cols = 224, batch_size=8, random_state=20, driver_split=True):
-    train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
 
+    train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
 
     if driver_split:
         kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
     else:
         kf = range(nfolds)
+
+    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type_global, 10, load_weights=False)
+    model.summary()
+    sgd = SGD(lr=learning_rates[0], decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     for num_fold, drivers in enumerate(kf):
 
@@ -90,9 +97,13 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
             print('Train drivers: ', unique_list_train)
             print('Test drivers: ', unique_list_valid)
 
+        #should we reset the weights each fold?
         weights_path = 'vgg16_generator_xval_models/fold%d.h5' % num_fold
+        #set_vgg16_model_2_weights(model, set_last_layer = False)
 
-        model = vgg_std16_model(img_rows, img_cols, color_type_global)
+        if len(learning_rates) > 1:
+            sgd = SGD(lr=learning_rates[0], decay=1e-6, momentum=0.9, nesterov=True)
+            model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
         train_datagen = ImageDataGenerator(
                         rotation_range=rotation_range,
@@ -117,6 +128,24 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
     			 validation_data=(X_valid, Y_valid),
     			 callbacks=callbacks,
     			 nb_val_samples = len(X_valid))
+
+            model.load_weights(weights_path)
+
+
+            for learning_rate in learning_rates[1:]:
+                print('dropping learning rate to %s' % learning_rate)
+                sgd = SGD(lr=learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+                model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+
+                model.fit_generator(train_flow,
+                 samples_per_epoch = samples_per_epoch if samples_per_epoch > 0 else len(X_train),
+                 nb_epoch=nb_epoch,
+                 validation_data=(X_valid, Y_valid),
+                 callbacks=callbacks,
+                 nb_val_samples = len(X_valid))
+
+                model.load_weights(weights_path)
+
         else:            
             perm = permutation(len(train_data))    
 
@@ -133,8 +162,21 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
                  callbacks=callbacks,
                  nb_val_samples = n_valid)
 
-        #reload the best epoch
-        model.load_weights(weights_path)
+            model.load_weights(weights_path)
+
+            for learning_rate in learning_rates[1:]:
+                print('dropping learning rate to %s' % learning_rate)
+                sgd = SGD(lr=learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+                model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+
+                model.fit_generator(train_flow,
+                 samples_per_epoch = samples_per_epoch if samples_per_epoch > 0 else n_train,
+                 nb_epoch=nb_epoch,
+                 validation_data=(X_valid, Y_valid),
+                 callbacks=callbacks,
+                 nb_val_samples = n_valid)
+
+                model.load_weights(weights_path)
 
         pretrained_vgg16.save_model(model, num_fold, modelStr)
 
@@ -171,20 +213,19 @@ def generator_test_predict(model, test_data, batch_size=32, num_samples=4, gener
 
     return predictions
 
-
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
 
     batch_size = 48
-    random_state = 21
+    random_state = 22
 
-    driver_split=False
+    driver_split=True
 
     if driver_split:
         modelStr += '_driverSplit'
     else:
         modelStr += '_randomSplit'
 
-    if 0:
+    if 1:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = False)
 
     print('Start testing............')
@@ -217,8 +258,12 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
 
         for index in range(nfolds):
             model = models[index]
-            #predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
-            predictions = generator_test_predict(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
+    
+            if num_test_samples == 1:
+                predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
+            else:
+                predictions = generator_test_predict(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
+    
             print('predictions shape: %s' % str(predictions.shape))
             yfull_test[index, index_range[0]:index_range[1]] = predictions
 
@@ -235,11 +280,10 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
     test_res = pretrained_vgg16.merge_several_folds_mean(yfull_test, nfolds)
     pretrained_vgg16.create_submission(test_res, test_ids, info_string)
 
-
 def main():
-    num_test_samples = 10
+    num_test_samples = 1
     generator_specs = ''
-    run_cross_validation(4, 20, '_vgg_16_generator', num_test_samples = num_test_samples)
+    run_cross_validation(2, 50, '_vgg_16_generator_untrained', num_test_samples = num_test_samples)
 
 if __name__ == "__main__":
 	main()
