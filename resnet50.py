@@ -14,7 +14,7 @@ from keras.layers.convolutional import (
     AveragePooling2D
 )
 from keras.layers.normalization import BatchNormalization
-from keras.utils.visualize_util import plot
+# from keras.utils.visualize_util import plot
 
 
 # Helper to build a conv -> BN -> relu block
@@ -70,8 +70,8 @@ def _shortcut(input, residual):
     # Expand channels of shortcut to match residual.
     # Stride appropriately to match residual (width, height)
     # Should be int if network architecture is correctly configured.
-    stride_width = input._keras_shape[2] / residual._keras_shape[2]
-    stride_height = input._keras_shape[3] / residual._keras_shape[3]
+    stride_width = input._keras_shape[2] // residual._keras_shape[2]
+    stride_height = input._keras_shape[3] // residual._keras_shape[3]
     equal_channels = residual._keras_shape[1] == input._keras_shape[1]
 
     shortcut = input
@@ -99,7 +99,7 @@ def _residual_block(block_function, nb_filters, repetations, is_first_layer=Fals
 
 # http://arxiv.org/pdf/1512.03385v1.pdf
 # 50 Layer resnet
-def resnet(output_dim = 10):
+def resnet50(output_dim = 10):
     input = Input(shape=(3, 224, 224))
 
     conv1 = _conv_bn_relu(nb_filter=64, nb_row=7, nb_col=7, subsample=(2, 2))(input)
@@ -118,6 +118,29 @@ def resnet(output_dim = 10):
     dense = Dense(output_dim=output_dim, init="he_normal", activation="softmax")(flatten1)
 
     model = Model(input=input, output=dense)
+    #model.summary()
+    return model
+
+def resnet_small(output_dim = 10):
+    input = Input(shape=(3, 224, 224))
+
+    conv1 = _conv_bn_relu(nb_filter=64, nb_row=7, nb_col=7, subsample=(2, 2))(input)
+    pool1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), border_mode="same")(conv1)
+
+    # Build residual blocks..
+    block_fn = _bottleneck
+    block1 = _residual_block(block_fn, nb_filters=64, repetations=3, is_first_layer=True)(pool1)
+    block2 = _residual_block(block_fn, nb_filters=128, repetations=3)(block1)
+    block3 = _residual_block(block_fn, nb_filters=256, repetations=3)(block2)
+    #block4 = _residual_block(block_fn, nb_filters=512, repetations=3)(block3)
+
+    # Classifier block
+    pool2 = AveragePooling2D(pool_size=(7, 7), strides=(1, 1), border_mode="same")(block3)
+    flatten1 = Flatten()(pool2)
+    dense = Dense(output_dim=output_dim, init="he_normal", activation="softmax")(flatten1)
+
+    model = Model(input=input, output=dense)
+    model.summary()
     return model
 
 
@@ -126,21 +149,21 @@ def main():
     start = time.time()
     model = resnet()
     duration = time.time() - start
-    print "{} s to make model".format(duration)
+    print("{} s to make model".format(duration))
 
     start = time.time()
     model.output
     duration = time.time() - start
-    print "{} s to get output".format(duration)
+    print("{} s to get output".format(duration))
 
     start = time.time()
     model.compile(loss="categorical_crossentropy", optimizer="sgd")
     duration = time.time() - start
-    print "{} s to get compile".format(duration)
+    print("{} s to get compile".format(duration))
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
     model_path = os.path.join(current_dir, "resnet_50.png")
-    plot(model, to_file=model_path, show_shapes=True)
+    # plot(model, to_file=model_path, show_shapes=True)
 
 
 if __name__ == '__main__':
