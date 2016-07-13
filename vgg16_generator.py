@@ -5,11 +5,13 @@ import pandas as pd
 import pickle
 import sys
 import math
+import pylab
+import cv2
 
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
 from keras.callbacks import EarlyStopping, ModelCheckpoint	
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam
 from keras.utils import np_utils
 from keras.models import model_from_json
 from keras.preprocessing.image import ImageDataGenerator
@@ -24,10 +26,11 @@ horizontal_flip = False
 rotation_range = 20
 width_shift_range = 0.05
 height_shift_range = 0.05
-samples_per_epoch = -1
 shear_range = 10.0 / (180.0 / np.pi)
 zoom_range = 0.1
-channel_shift_range=20.
+channel_shift_range=10.
+
+samples_per_epoch = -1 #4800
 
 learning_rates = [1e-3]
 
@@ -53,15 +56,6 @@ def get_cached_train_data():
 	print('done loading train data')
 	return result
 
-def vgg_std16_model(img_rows, img_cols, color_type):
-    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type, 10, load_weights=True)
-
-    #model.summary()
-    sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
-
-    return model
-
 def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, img_cols = 224, batch_size=8, random_state=20, driver_split=True):
 
     train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
@@ -71,10 +65,10 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
     else:
         kf = range(nfolds)
 
-    model = get_trained_vgg16_model_2(img_rows, img_cols, color_type_global, 10, load_weights=False)
-    model.summary()
-    sgd = SGD(lr=learning_rates[0], decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+    #model = get_trained_vgg16_model_2(img_rows, img_cols, color_type_global, 10, load_weights=False)
+    #model.summary()
+    #sgd = SGD(lr=learning_rates[0], decay=1e-6, momentum=0.9, nesterov=True)
+    #model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
     for num_fold, drivers in enumerate(kf):
 
@@ -86,6 +80,9 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
         print('Start KFold number {} from {}'.format(num_fold, nfolds))
 
         if driver_split:
+            if train_data is None:
+                train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
+
             (train_drivers, test_drivers) = drivers
             unique_list_train = [unique_drivers[i] for i in train_drivers]
             X_train, Y_train, train_index = pretrained_vgg16.copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
@@ -97,13 +94,20 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
             print('Train drivers: ', unique_list_train)
             print('Test drivers: ', unique_list_valid)
 
+            train_data = None
+
         #should we reset the weights each fold?
         weights_path = 'vgg16_generator_xval_models/fold%d.h5' % num_fold
         #set_vgg16_model_2_weights(model, set_last_layer = False)
 
-        if len(learning_rates) > 1:
-            sgd = SGD(lr=learning_rates[0], decay=1e-6, momentum=0.9, nesterov=True)
-            model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+        model = get_trained_vgg16_model_2(img_rows, img_cols, color_type_global, 10)
+        sgd = SGD(lr=1e-3, decay=1e-6, momentum=0.9, nesterov=True)
+        model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+
+
+        # if len(learning_rates) > 1:
+        #     sgd = SGD(lr=learning_rates[0], decay=1e-6, momentum=0.9, nesterov=True)
+        #     model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
 
         train_datagen = ImageDataGenerator(
                         rotation_range=rotation_range,
@@ -178,6 +182,10 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
                 model.load_weights(weights_path)
 
+        #get some gc?
+        X_train = None
+        X_valid = None
+
         pretrained_vgg16.save_model(model, num_fold, modelStr)
 
 def generator_test_predict(model, test_data, batch_size=32, num_samples=4, generator_batch_size = 2**12):
@@ -216,9 +224,9 @@ def generator_test_predict(model, test_data, batch_size=32, num_samples=4, gener
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
 
     batch_size = 48
-    random_state = 22
+    random_state = 23
 
-    driver_split=True
+    driver_split=False
 
     if driver_split:
         modelStr += '_driverSplit'
@@ -226,7 +234,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
         modelStr += '_randomSplit'
 
     if 1:
-        cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = False)
+        cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
 
     print('Start testing............')
 
@@ -280,10 +288,47 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
     test_res = pretrained_vgg16.merge_several_folds_mean(yfull_test, nfolds)
     pretrained_vgg16.create_submission(test_res, test_ids, info_string)
 
+def visualize_data_augmentation():
+    train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
+
+    train_datagen = ImageDataGenerator(
+                    rotation_range=rotation_range,
+                    width_shift_range=width_shift_range,
+                    height_shift_range=height_shift_range,
+                    shear_range = shear_range,
+                    zoom_range = zoom_range,
+        channel_shift_range=channel_shift_range,    
+    )
+
+    train_flow = train_datagen.flow(train_data[[0] * 64], train_target[[0] * 64], batch_size=64)
+
+    for augment_img_batch, augment_img_target in train_flow:
+        break    
+
+    #print(augment_img_batch.shape)
+
+    for train_img, augment_img in zip(train_data, augment_img_batch):
+        #print(train_img.shape)
+        #print(augment_img.shape)
+
+        # pylab.subplot(2, 1, 1)
+
+        cv2.imshow("Original", np.transpose(train_img*255., (1, 2, 0)))
+        # pylab.imshow(np.transpose(train_img*255., (1, 2, 0)))
+
+        # pylab.subplot(2, 1, 2)
+
+        cv2.imshow("Augmented", np.transpose(augment_img*255., (1, 2, 0)))
+        # pylab.imshow(np.transpose(augment_img*255., (1, 2, 0)))
+
+        # pylab.show()
+        cv2.waitKey(0)
+
 def main():
     num_test_samples = 1
     generator_specs = ''
-    run_cross_validation(2, 50, '_vgg_16_generator_untrained', num_test_samples = num_test_samples)
+    run_cross_validation(4, 20, '_vgg_16_generator_singlefullconnected', num_test_samples = num_test_samples)
 
 if __name__ == "__main__":
 	main()
+    #visualize_data_augmentation()
