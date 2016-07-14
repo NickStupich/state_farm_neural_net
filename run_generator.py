@@ -36,7 +36,7 @@ channel_shift_range=10.
 
 samples_per_epoch = -1 #4800
 
-learning_rates = [1e-1, 1e-2, 1e-3, 1e-5]
+learning_rates = [1e-6, 1e-7, 1e-8]
 
 
 batch_size = 32
@@ -44,17 +44,18 @@ random_state = 23
 
 driver_split=False
 num_folds = 2
-num_epochs = 50
+num_epochs = 20
 num_test_samples = 1
 patience=10
 
 model_name = 'resnet50' 
 
 get_model = resnet50.resnet50
-# get_model = resnet50.resnet_small
+#get_model = resnet50.resnet_small
+# get_model = resnet50.resnet_tiny
 
-#get_optimizer = lambda lr: SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
-get_optimizer = lambda lr: Adam()
+get_optimizer = lambda lr: SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
+#get_optimizer = lambda lr: Adam()
 
 def get_callbacks(weights_path):
 

@@ -143,6 +143,28 @@ def resnet_small(output_dim = 10):
     model.summary()
     return model
 
+def resnet_tiny(output_dim = 10):
+    input = Input(shape=(3, 224, 224))
+
+    conv1 = _conv_bn_relu(nb_filter=32, nb_row=7, nb_col=7, subsample=(2, 2))(input)
+    pool1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), border_mode="same")(conv1)
+
+    # Build residual blocks..
+    block_fn = _bottleneck
+    block1 = _residual_block(block_fn, nb_filters=32, repetations=2, is_first_layer=True)(pool1)
+    block2 = _residual_block(block_fn, nb_filters=64, repetations=2)(block1)
+    #block3 = _residual_block(block_fn, nb_filters=256, repetations=3)(block2)
+    #block4 = _residual_block(block_fn, nb_filters=512, repetations=3)(block3)
+
+    # Classifier block
+    pool2 = AveragePooling2D(pool_size=(7, 7), strides=(1, 1), border_mode="same")(block2)
+    flatten1 = Flatten()(pool2)
+    dense = Dense(output_dim=output_dim, init="he_normal", activation="softmax")(flatten1)
+
+    model = Model(input=input, output=dense)
+    model.summary()
+    return model
+
 
 def main():
     import time
