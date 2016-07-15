@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import functools
 
 from sklearn.cross_validation import KFold
 from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers
@@ -62,7 +63,7 @@ def driver_split_data_generator(n_folds = 4, img_rows = 224, img_cols = 224, col
 		if not os.path.exists(folder):
 			raise Exception("Data cache file doesn't exist, run create_train_split_data() first")
 
-		result = load_fold_data(folder)
+		result = functools.partial(load_fold_data, folder)
 
 		yield result
 
@@ -70,8 +71,10 @@ def driver_split_data_generator(n_folds = 4, img_rows = 224, img_cols = 224, col
 if __name__ == "__main__":
 	create_train_split_data()
 
-	for fold, (X_train, Y_train, X_valid, Y_valid) in enumerate(driver_split_data_generator()):
 
+	for fold, data_provider in enumerate(driver_split_data_generator()):
+		
+		(X_train, Y_train, X_valid, Y_valid) = data_provider()
 		print('fold %d' % (fold))
 		print(X_train.shape)
 		print(Y_train.shape)

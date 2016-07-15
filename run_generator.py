@@ -50,7 +50,7 @@ driver_split=True
 num_folds = 4
 num_epochs = 20
 num_test_samples = 1
-patience=5
+patience=2
 
 #model_name = 'resnet50' 
 #get_model = resnet50.resnet50
@@ -87,11 +87,12 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
     if driver_split:
         data_iterator = driver_split_data_generator(nfolds, img_rows, img_cols, color_type_global, random_state)
     else:
-        data_iterator = range(nfolds)
         train_data, train_target, driver_id, unique_drivers = read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
                                         color_type, shuffle=False, transform=False)
 
-    for num_fold, driver_data in enumerate(data_iterator):
+    for num_fold in range(nfolds):
+        if driver_split:
+            data_provider = next(data_iterator)
 
         model_path = os.path.join('cache', 'model_weights' + str(num_fold) + modelStr + '.h5')
         if os.path.isfile(model_path):
@@ -103,7 +104,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
         weights_path = 'generator_xval_models/fold%d.h5' % num_fold
 
         if driver_split:
-            (X_train, Y_train, X_valid, Y_valid) = driver_data
+            (X_train, Y_train, X_valid, Y_valid) = data_provider()
 
         if reset_weights_each_fold or model is None or len(learning_rates) > 1:
             if reset_weights_each_fold or model is None:
@@ -218,6 +219,38 @@ def generator_test_predict(model, test_data, batch_size=32, num_samples=4, gener
 
     return predictions
 
+
+def generator_test_predict2(model, test_data, batch_size=32, num_samples=4):
+    test_ids = np.arange(len(test_data)) #to put things back together after
+
+    all_predictions = np.zeros((num_samples, len(test_data), 10))
+
+    test_augment_range = 0.5
+
+    test_datagen = ImageDataGenerator(
+                    rotation_range=rotation_range * test_augment_range,
+                    width_shift_range=width_shift_range * test_augment_range,
+                    height_shift_range=height_shift_range * test_augment_range,
+                    shear_range = shear_range * test_augment_range,
+                    zoom_range = zoom_range * test_augment_range,
+        channel_shift_range=channel_shift_range * test_augment_range,   
+    )
+
+    test_flow = test_datagen.flow(test_data, test_ids, batch_size=batch_size)
+
+    for n_sample in range(num_samples):
+        print('random test sample %d / %d' % (n_sample, num_samples))
+        preds = model.predict_generator(test_flow, len(test_data))
+
+        all_predictions[n_sample] = preds
+
+    predictions = np.mean(all_predictions, axis=0)
+    print('different predictions average std dev: %s' % np.mean(np.std(all_predictions, axis=0, ddof=1)))
+    print(all_predictions.shape)
+    print(predictions.shape)
+
+    return predictions
+
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
 
 
@@ -262,8 +295,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
             if num_test_samples == 1:
                 predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
             else:
-                predictions = generator_test_predict(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
-    
+                #predictions = generator_test_predict(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
+                predictions = generator_test_predict2(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
+ 
             print('predictions shape: %s' % str(predictions.shape))
             yfull_test[index, index_range[0]:index_range[1]] = predictions
 
@@ -281,9 +315,14 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
     pretrained_vgg16.create_submission(test_res, test_ids, info_string)
 
 def main():
-    modelStr = 'run_gen_%s' % model_name
-
+    global num_test_samples
+    modelStr = 'run_gen_%s_num_test_samples_%s' % (model_name, num_test_samples)
+    num_test_samples = 2
     run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
+
+    # num_test_samples = 3
+    # modelStr = 'run_gen_%s_num_test_samples_%s' % (model_name, num_test_samples)    
+    # run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
 
 if __name__ == "__main__":
 	main()
