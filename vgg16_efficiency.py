@@ -1,4 +1,4 @@
-from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, UpSampling2D, Flatten, Dropout, Activation, ZeroPadding2D
+from keras.layers import Input, Dense, Convolution2D, MaxPooling2D, UpSampling2D, Flatten, Dropout, Activation, ZeroPadding2D, AveragePooling2D
 from keras.layers.noise import GaussianNoise
 from keras.optimizers import *
 from keras.models import Model, Sequential
@@ -75,7 +75,80 @@ def set_vgg16_model_2_weights(model, set_last_layer = True):
             model_k += 1
     f.close()
 
-def get_trained_vgg16_model_2(img_rows, img_cols, color_type, output_size = 1000, load_weights=True, noise = 0):
+def trained_vgg16_no_fc(img_rows=224, img_cols=224, color_type=3, output_size=10, load_weights=True):
+    model = Sequential()
+
+    model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', input_shape=(color_type,img_rows, img_cols), init='he_normal'))
+    model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2,2)))
+
+    model.add(Flatten())
+    
+    model.add(Dense(output_size, activation='softmax', init='he_normal'))
+
+    set_last_layer = (output_size == 1000)
+    if load_weights:
+        set_vgg16_model_2_weights(model, set_last_layer = set_last_layer)
+    model.summary()
+    return model
+
+def trained_vgg16_average_1x1(img_rows=224, img_cols=224, color_type=3, output_size=10, load_weights=True):
+    model = Sequential()
+
+    model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', input_shape=(color_type,img_rows, img_cols), init='he_normal'))
+    model.add(Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
+    model.add(MaxPooling2D((2, 2), strides=(2,2)))
+
+    # model.add(AveragePooling2D(pool_size=(7, 7), strides=(7, 7), border_mode="same"))
+
+    model.add(Convolution2D(1024, 7, 7, activation='relu', border_mode='valid', init='he_normal'))
+
+    model.add(Convolution2D(output_size, 1, 1, activation='relu', border_mode='same', init='he_normal'))
+
+    model.add(Flatten())
+
+    model.summary()
+    return model
+
+def get_trained_vgg16_model_2(img_rows=224, img_cols=224, color_type=3, output_size = 10, load_weights=True, noise = 0):
     model = Sequential()
 
     if noise > 0:

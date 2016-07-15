@@ -18,6 +18,8 @@ from keras.preprocessing.image import ImageDataGenerator
 import pretrained_vgg16
 from numpy.random import permutation
 
+from train_data_generator import driver_split_data_generator
+
 #models
 import vgg16_efficiency
 import resnet50
@@ -34,25 +36,39 @@ shear_range = 10.0 / (180.0 / np.pi)
 zoom_range = 0.1
 channel_shift_range=10.
 
-samples_per_epoch = -1 #4800
+reset_weights_each_fold = False
 
-learning_rates = [1e-6, 1e-7, 1e-8]
+samples_per_epoch = 4800
 
+#learning_rates = [2e-6, 2e-7, 2e-8]
+learning_rates = [1e-3]
 
-batch_size = 32
-random_state = 23
+batch_size = 48
+random_state = 30
 
-driver_split=False
-num_folds = 2
+driver_split=True
+num_folds = 4
 num_epochs = 20
 num_test_samples = 1
-patience=10
+patience=5
 
-model_name = 'resnet50' 
+#model_name = 'resnet50' 
+#get_model = resnet50.resnet50
 
-get_model = resnet50.resnet50
 #get_model = resnet50.resnet_small
+#model_name = 'resnet_small'
+
 # get_model = resnet50.resnet_tiny
+#model_name = 'resnet_tiny'
+
+get_model = vgg16_efficiency.get_trained_vgg16_model_2
+model_name = 'vgg16'
+
+# get_model = vgg16_efficiency.trained_vgg16_no_fc
+# model_name = 'vgg16_nofc'
+
+# get_model = vgg16_efficiency.trained_vgg16_average_1x1
+# model_name = 'vgg16_avg_1x1'
 
 get_optimizer = lambda lr: SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
 #get_optimizer = lambda lr: Adam()
@@ -66,15 +82,16 @@ def get_callbacks(weights_path):
 
 def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, img_cols = 224, batch_size=8, random_state=20, driver_split=True):
 
-    train_data, train_target, driver_id, unique_drivers = pretrained_vgg16.read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                                  color_type_global, shuffle=False, transform=False)
+    model = None
 
     if driver_split:
-        kf = KFold(len(unique_drivers), n_folds=nfolds, shuffle=True, random_state=random_state)
+        data_iterator = driver_split_data_generator(nfolds, img_rows, img_cols, color_type_global, random_state)
     else:
-        kf = range(nfolds)
+        data_iterator = range(nfolds)
+        train_data, train_target, driver_id, unique_drivers = read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
+                                        color_type, shuffle=False, transform=False)
 
-    for num_fold, drivers in enumerate(kf):
+    for num_fold, driver_data in enumerate(data_iterator):
 
         model_path = os.path.join('cache', 'model_weights' + str(num_fold) + modelStr + '.h5')
         if os.path.isfile(model_path):
@@ -86,25 +103,13 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
         weights_path = 'generator_xval_models/fold%d.h5' % num_fold
 
         if driver_split:
-            if train_data is None:
-                train_data, train_target, driver_id, unique_drivers = get_cached_train_data()
+            (X_train, Y_train, X_valid, Y_valid) = driver_data
 
-            (train_drivers, test_drivers) = drivers
-            unique_list_train = [unique_drivers[i] for i in train_drivers]
-            X_train, Y_train, train_index = pretrained_vgg16.copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)
-            unique_list_valid = [unique_drivers[i] for i in test_drivers]
-            X_valid, Y_valid, test_index = pretrained_vgg16.copy_selected_drivers(train_data, train_target, driver_id, unique_list_valid)
-
-            print('Split train: ', len(X_train), len(Y_train))
-            print('Split valid: ', len(X_valid), len(Y_valid))
-            print('Train drivers: ', unique_list_train)
-            print('Test drivers: ', unique_list_valid)
-
-            train_data = None
-
-        model = get_model()
-        optimizer = get_optimizer(learning_rates[0])
-        model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+        if reset_weights_each_fold or model is None or len(learning_rates) > 1:
+            if reset_weights_each_fold or model is None:
+                model = get_model()
+            optimizer = get_optimizer(learning_rates[0])
+            model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
         train_datagen = ImageDataGenerator(
                         rotation_range=rotation_range,
@@ -117,7 +122,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
         if driver_split:
             perm = permutation(len(X_train))    
-            train_flow = train_datagen.flow(X_train[perm], Y_train[perm], batch_size=batch_size)
+            train_flow = train_datagen.flow(X_train, Y_train, batch_size=batch_size)
 
             model.fit_generator(train_flow,
              	samples_per_epoch = samples_per_epoch if samples_per_epoch > 0 else len(X_train),
@@ -176,10 +181,6 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
                 model.load_weights(weights_path)
 
-        #get some gc?
-        X_train = None
-        X_valid = None
-
         pretrained_vgg16.save_model(model, num_fold, modelStr)
 
 def generator_test_predict(model, test_data, batch_size=32, num_samples=4, generator_batch_size = 2**12):
@@ -187,13 +188,15 @@ def generator_test_predict(model, test_data, batch_size=32, num_samples=4, gener
 
     all_predictions = np.zeros((len(test_data), num_samples, 10))
 
+    test_augment_range = 0.5
+
     test_datagen = ImageDataGenerator(
-                    rotation_range=rotation_range/2.0,
-                    width_shift_range=width_shift_range/2.0,
-                    height_shift_range=height_shift_range/2.0,
-                    shear_range = shear_range/2.0,
-                    zoom_range = zoom_range/2.0,
-		channel_shift_range=channel_shift_range/2.0,	
+                    rotation_range=rotation_range * test_augment_range,
+                    width_shift_range=width_shift_range * test_augment_range,
+                    height_shift_range=height_shift_range * test_augment_range,
+                    shear_range = shear_range * test_augment_range,
+                    zoom_range = zoom_range * test_augment_range,
+		channel_shift_range=channel_shift_range * test_augment_range,	
 	)
 
     test_flow = test_datagen.flow(test_data, test_ids, batch_size=generator_batch_size)
