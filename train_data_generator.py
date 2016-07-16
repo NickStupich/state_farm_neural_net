@@ -5,7 +5,10 @@ import functools
 from sklearn.cross_validation import KFold
 from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers
 
-cache_path_base = '/media/nick/TempDisk/state_farm/cache_data/train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
+
+#cache_path_base = '/media/nick/TempDisk/state_farm/cache_data/train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
+cache_path_base = 'cache_data/train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
+
 
 def get_fold_folder_name(fold, n_folds, img_rows, img_cols, color_type, random_state):
 	return cache_path_base % (img_rows, img_cols, color_type, fold, n_folds, random_state)

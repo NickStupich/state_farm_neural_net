@@ -220,12 +220,10 @@ def generator_test_predict(model, test_data, batch_size=32, num_samples=4, gener
     return predictions
 
 
-def generator_test_predict2(model, test_data, batch_size=32, num_samples=4):
-    test_ids = np.arange(len(test_data)) #to put things back together after
+def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, random_state = 40):
+    all_predictions = np.zeros((len(test_data), num_samples, 10))
 
-    all_predictions = np.zeros((num_samples, len(test_data), 10))
-
-    test_augment_range = 0.5
+    test_augment_range = 1.0
 
     test_datagen = ImageDataGenerator(
                     rotation_range=rotation_range * test_augment_range,
@@ -236,19 +234,16 @@ def generator_test_predict2(model, test_data, batch_size=32, num_samples=4):
         channel_shift_range=channel_shift_range * test_augment_range,   
     )
 
-    test_flow = test_datagen.flow(test_data, test_ids, batch_size=batch_size)
 
+    test_flow = test_datagen.flow(test_data, batch_size=batch_size, shuffle=False, seed=random_state)
     for n_sample in range(num_samples):
-        print('random test sample %d / %d' % (n_sample, num_samples))
+        test_flow.reset() #reset back to 0 (otherwise outputs are staggered?)
         preds = model.predict_generator(test_flow, len(test_data))
 
-        all_predictions[n_sample] = preds
+        print('random test sample %d / %d. shape: %s' % (n_sample, num_samples, str(preds.shape)))
+        all_predictions[:, n_sample] = preds
 
-    predictions = np.mean(all_predictions, axis=0)
-    print('different predictions average std dev: %s' % np.mean(np.std(all_predictions, axis=0, ddof=1)))
-    print(all_predictions.shape)
-    print(predictions.shape)
-
+    predictions = np.mean(all_predictions, axis=1)
     return predictions
 
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
@@ -316,8 +311,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
 
 def main():
     global num_test_samples
-    modelStr = 'run_gen_%s_num_test_samples_%s' % (model_name, num_test_samples)
-    num_test_samples = 2
+    modelStr = 'run_gen_%s_num_test_samples_%s'% (model_name, num_test_samples)
+    print('modelstr: %s ' % modelStr)
+    num_test_samples = 50
     run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
 
     # num_test_samples = 3
