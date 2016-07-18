@@ -19,6 +19,7 @@ import pretrained_vgg16
 from numpy.random import permutation
 
 from train_data_generator import driver_split_data_generator
+from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers
 
 #models
 import vgg16_efficiency
@@ -29,14 +30,16 @@ color_type_global = 3
 img_rows, img_cols = 224, 224
 
 horizontal_flip = False
-rotation_range = 20
-width_shift_range = 0.05
-height_shift_range = 0.05
-shear_range = 10.0 / (180.0 / np.pi)
+rotation_range = 30
+width_shift_range = 0.1
+height_shift_range = 0.1
+shear_range_deg = 10.0
+shear_range = shear_range_deg / (180.0 / np.pi)
 zoom_range = 0.1
 channel_shift_range=10.
 
-reset_weights_each_fold = False
+augment_specs = '_'.join(map(str, [rotation_range, width_shift_range, height_shift_range, shear_range_deg, zoom_range, channel_shift_range]))
+reset_weights_each_fold = True
 
 samples_per_epoch = 4800
 
@@ -44,10 +47,11 @@ samples_per_epoch = 4800
 learning_rates = [1e-3]
 
 batch_size = 48
+test_batch_size = batch_size
 random_state = 30
 
-driver_split=True
-num_folds = 4
+driver_split=False
+num_folds = 10
 num_epochs = 20
 num_test_samples = 1
 patience=2
@@ -74,21 +78,19 @@ get_optimizer = lambda lr: SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
 #get_optimizer = lambda lr: Adam()
 
 def get_callbacks(weights_path):
-
     callbacks = []
     callbacks.append(EarlyStopping(monitor='val_loss', patience=patience, verbose=0))
     callbacks.append(ModelCheckpoint(weights_path, monitor='val_loss', save_best_only=True, verbose=0))
     return callbacks
 
 def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, img_cols = 224, batch_size=8, random_state=20, driver_split=True):
-
     model = None
 
     if driver_split:
         data_iterator = driver_split_data_generator(nfolds, img_rows, img_cols, color_type_global, random_state)
     else:
         train_data, train_target, driver_id, unique_drivers = read_and_normalize_and_shuffle_train_data(img_rows, img_cols,
-                                        color_type, shuffle=False, transform=False)
+                                        color_type_global, shuffle=False, transform=False)
 
     for num_fold in range(nfolds):
         if driver_split:
@@ -106,11 +108,20 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
         if driver_split:
             (X_train, Y_train, X_valid, Y_valid) = data_provider()
 
-        if reset_weights_each_fold or model is None or len(learning_rates) > 1:
-            if reset_weights_each_fold or model is None:
-                model = get_model()
+        if model is None:
+            print('creating new model')
+            model = get_model()
             optimizer = get_optimizer(learning_rates[0])
             model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+        elif len(learning_rates) > 1:
+            print('creating new optimizer and recompiling')
+            optimizer = get_optimizer(learning_rates[0])
+            model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+        if reset_weights_each_fold:
+            print('resetting model weights to imagenet pretrain')
+            vgg16_efficiency.set_vgg16_model_2_weights(model, set_last_layer = False)
+
 
         train_datagen = ImageDataGenerator(
                         rotation_range=rotation_range,
@@ -184,9 +195,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
         pretrained_vgg16.save_model(model, num_fold, modelStr)
 
-def generator_test_predict(model, test_data, batch_size=32, num_samples=4, generator_batch_size = 2**12):
-    test_ids = np.arange(len(test_data)) #to put things back together after
-
+def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, random_state = 40):
     all_predictions = np.zeros((len(test_data), num_samples, 10))
 
     test_augment_range = 0.5
@@ -197,43 +206,8 @@ def generator_test_predict(model, test_data, batch_size=32, num_samples=4, gener
                     height_shift_range=height_shift_range * test_augment_range,
                     shear_range = shear_range * test_augment_range,
                     zoom_range = zoom_range * test_augment_range,
-		channel_shift_range=channel_shift_range * test_augment_range,	
-	)
-
-    test_flow = test_datagen.flow(test_data, test_ids, batch_size=generator_batch_size)
-    num_generator_batches = math.ceil(len(test_data) / generator_batch_size)
-
-    for n_sample in range(num_samples):
-        print('\nrunning random test sample %d / %d' % (n_sample, num_samples))
-        for i, (batch_data, batch_ids) in enumerate(test_flow):
-            preds = model.predict(batch_data, batch_size=batch_size, verbose=True)
-            all_predictions[batch_ids, n_sample] = preds
-            print('%d / %s' % (i, num_generator_batches))
-            if i == (num_generator_batches-1):
-                break
-
-    predictions = np.mean(all_predictions, axis=1)
-    print('different predictions average std dev: %s' % np.mean(np.std(all_predictions, axis=1, ddof=1)))
-    print(all_predictions.shape)
-    print(predictions.shape)
-
-    return predictions
-
-
-def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, random_state = 40):
-    all_predictions = np.zeros((len(test_data), num_samples, 10))
-
-    test_augment_range = 1.0
-
-    test_datagen = ImageDataGenerator(
-                    rotation_range=rotation_range * test_augment_range,
-                    width_shift_range=width_shift_range * test_augment_range,
-                    height_shift_range=height_shift_range * test_augment_range,
-                    shear_range = shear_range * test_augment_range,
-                    zoom_range = zoom_range * test_augment_range,
         channel_shift_range=channel_shift_range * test_augment_range,   
     )
-
 
     test_flow = test_datagen.flow(test_data, batch_size=batch_size, shuffle=False, seed=random_state)
     for n_sample in range(num_samples):
@@ -247,8 +221,6 @@ def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, rand
     return predictions
 
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
-
-
     if driver_split:
         modelStr += '_driverSplit'
     else:
@@ -265,7 +237,7 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
     models = []
     for index in range(nfolds):
         model = pretrained_vgg16.read_model(index, modelStr)
-        model.compile(optimizer='sgd', loss='categorical_crossentropy')
+        # model.compile(optimizer='sgd', loss='categorical_crossentropy')
         models.append(model)
 
     print('loaded %d models' % len(models))
@@ -288,10 +260,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
             model = models[index]
     
             if num_test_samples == 1:
-                predictions = model.predict(split_test_data, batch_size = batch_size, verbose=True)
+                predictions = model.predict(split_test_data, batch_size = test_batch_size, verbose=True)
             else:
-                #predictions = generator_test_predict(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
-                predictions = generator_test_predict2(model, split_test_data, batch_size=batch_size, num_samples=num_test_samples)
+                predictions = generator_test_predict2(model, split_test_data, batch_size=test_batch_size, num_samples=num_test_samples)
  
             print('predictions shape: %s' % str(predictions.shape))
             yfull_test[index, index_range[0]:index_range[1]] = predictions
@@ -311,14 +282,9 @@ def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=1
 
 def main():
     global num_test_samples
-    modelStr = 'run_gen_%s_num_test_samples_%s'% (model_name, num_test_samples)
+    modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
     print('modelstr: %s ' % modelStr)
-    num_test_samples = 50
     run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
-
-    # num_test_samples = 3
-    # modelStr = 'run_gen_%s_num_test_samples_%s' % (model_name, num_test_samples)    
-    # run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
 
 if __name__ == "__main__":
 	main()
