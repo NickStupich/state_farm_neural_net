@@ -3,15 +3,19 @@ import os
 import functools
 
 from sklearn.cross_validation import KFold
-from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers
+from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers, read_and_normalize_test_data
 
 
-#cache_path_base = '/media/nick/TempDisk/state_farm/cache_data/train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
-cache_path_base = 'cache_data/train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
+cache_path_base = '/media/nick/TempDisk1/state_farm/cache_data/'#train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
+#cache_path_base = 'cache_data/'
+
+train_cache_path = cache_path_base + 'train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
+
+test_cache_path = cache_path_base + 'test_folds_cache_%dx%dx%d_nfolds%d'
 
 
 def get_fold_folder_name(fold, n_folds, img_rows, img_cols, color_type, random_state):
-	return cache_path_base % (img_rows, img_cols, color_type, fold, n_folds, random_state)
+	return train_cache_path % (img_rows, img_cols, color_type, fold, n_folds, random_state)
 
 def save_fold_data(X_train, Y_train, X_valid, Y_valid, folder):
 	np.save(folder + "/X_train.npy", X_train)
@@ -70,20 +74,64 @@ def driver_split_data_generator(n_folds = 4, img_rows = 224, img_cols = 224, col
 
 		yield result
 
+def load_test_data_fold(folder, fold):
+	data = np.load(folder + '/data%d.npy' % fold)
+	ids = np.load(folder + "/ids%d.npy" % fold)
+
+	return data, ids
+
+def save_test_data_fold(folder, fold, data, ids):
+	np.save(folder + "/data%d.npy" % fold, data)
+	np.save(folder + "/ids%d.npy" % fold, ids)
+
+def get_test_folder_name(n_folds, img_rows, img_cols, color_type):
+	return test_cache_path % (img_rows, img_cols, color_type, n_folds)
+
+def test_data_generator(n_folds = 5, img_rows = 224, img_cols = 224, color_type=3):
+	for fold in range(n_folds):
+		folder = get_test_folder_name(n_folds, img_rows, img_cols, color_type)
+
+		if not os.path.exists(folder):
+			raise Exception("Test data cache file doesn't exist, run create_test_split_data() first")
+
+		result = functools.partial(load_test_data_fold, folder, fold)
+
+		yield result
+
+def create_test_split_data(n_folds = 5, img_rows = 224, img_cols = 224, color_type = 3):
+    n = 79726
+    folder = get_test_folder_name(n_folds, img_rows, img_cols, color_type)
+
+    for fold in [4]:#range(n_folds):
+        index_range = [int(fold*n/n_folds),int((fold+1)*n/n_folds)]
+
+        split_test_data, split_ids = read_and_normalize_test_data(img_rows, img_cols, color_type, index_range = index_range, transform=False)
+
+        save_test_data_fold(folder, fold, split_test_data, split_ids)
 
 if __name__ == "__main__":
-	create_train_split_data()
 
+	if 0:
+		#create_train_split_data()
 
-	for fold, data_provider in enumerate(driver_split_data_generator()):
-		
-		(X_train, Y_train, X_valid, Y_valid) = data_provider()
-		print('fold %d' % (fold))
-		print(X_train.shape)
-		print(Y_train.shape)
-		print(X_valid.shape)
-		print(Y_valid.shape)
-		print(np.mean(X_train.shape))
+		for fold, data_provider in enumerate(driver_split_data_generator()):
+			
+			(X_train, Y_train, X_valid, Y_valid) = data_provider()
+			print('fold %d' % (fold))
+			print(X_train.shape)
+			print(Y_train.shape)
+			print(X_valid.shape)
+			print(Y_valid.shape)
+			print(np.mean(X_train.shape))
 
-		X_train = None
-		X_valid = None
+			X_train = None
+			X_valid = None
+
+	if 1:
+		#create_test_split_data()
+
+		for fold, data_provider in enumerate(test_data_generator()):
+			data, ids = data_provider()
+			print(fold)
+			print(ids.shape)
+			print(data.shape)

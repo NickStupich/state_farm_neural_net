@@ -18,7 +18,7 @@ from keras.preprocessing.image import ImageDataGenerator
 import pretrained_vgg16
 from numpy.random import permutation
 
-from train_data_generator import driver_split_data_generator
+from train_data_generator import driver_split_data_generator, test_data_generator
 from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers
 
 #models
@@ -51,7 +51,7 @@ test_batch_size = batch_size
 random_state = 30
 
 driver_split=False
-num_folds = 10
+num_folds = 20
 num_epochs = 20
 num_test_samples = 1
 patience=2
@@ -220,6 +220,59 @@ def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, rand
     predictions = np.mean(all_predictions, axis=1)
     return predictions
 
+def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
+    if driver_split:
+        modelStr += '_driverSplit'
+    else:
+        modelStr += '_randomSplit'
+
+    if 0:
+        cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
+
+    print('Start testing............')
+
+    models = []
+
+    folder = 'subm2/predictions_' + modelStr    
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
+
+    for index in range(nfolds):
+        filename = folder + 'fold_' + str(index) + 'test_samples_' + str(num_test_samples) + '.csv'
+
+        if os.path.exists(filename):
+            print('file exists, skipping')
+            continue
+
+        model = pretrained_vgg16.read_model(index, modelStr)
+
+        model_predictions = np.zeros((79726, 10))
+        test_ids = []
+
+        data_index = 0
+        for test_fold, split_test_data_provider in enumerate(test_data_generator()):
+            split_test_data, split_test_ids = split_test_data_provider()
+            test_ids += list(split_test_ids)
+
+            if num_test_samples == 1:
+                predictions = model.predict(split_test_data, batch_size = test_batch_size, verbose=True)
+            else:
+                predictions = generator_test_predict2(model, split_test_data, batch_size=test_batch_size, num_samples=num_test_samples)
+ 
+            model_predictions[data_index:data_index + len(predictions)] = predictions
+            data_index += len(predictions)
+
+        test_ids = np.array(test_ids)
+
+        create_submission(model_predictions, test_ids, filename)
+
+def create_submission(predictions, test_id, filename):
+    result1 = pd.DataFrame(predictions, columns=['c0', 'c1', 'c2', 'c3',
+                                                 'c4', 'c5', 'c6', 'c7',
+                                                 'c8', 'c9'])
+    result1.loc[:, 'img'] = pd.Series(test_id, index=result1.index)
+    result1.to_csv(filename, index=False)
+
 def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
     if driver_split:
         modelStr += '_driverSplit'
@@ -284,7 +337,8 @@ def main():
     global num_test_samples
     modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
     print('modelstr: %s ' % modelStr)
-    run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
+    # run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
+    run_cross_validation2(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
 
 if __name__ == "__main__":
 	main()
