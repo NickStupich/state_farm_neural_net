@@ -52,7 +52,7 @@ test_batch_size = batch_size
 random_state = 30
 
 driver_split=False
-num_folds = 20
+num_folds = 3
 num_epochs = 20
 num_test_samples = 5
 patience=2
