@@ -54,7 +54,7 @@ random_state = 30
 driver_split=False
 num_folds = 20
 num_epochs = 20
-num_test_samples = 1
+num_test_samples = 5
 patience=2
 
 #model_name = 'resnet50' 
@@ -260,7 +260,7 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
             if num_test_samples == 1:
                 predictions = model.predict(split_test_data, batch_size = test_batch_size, verbose=True)
             else:
-                predictions = generator_test_predict2(model, split_test_data, batch_size=test_batch_size, num_samples=num_test_samples)
+                predictions = generator_test_predict2(model, split_test_data, batch_size=test_batch_size, num_samples=num_test_samples, random_state = index*100+test_fold)
  
             model_predictions[data_index:data_index + len(predictions)] = predictions
             data_index += len(predictions)
