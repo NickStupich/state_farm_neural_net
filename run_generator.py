@@ -20,6 +20,7 @@ from numpy.random import permutation
 
 from train_data_generator import driver_split_data_generator, test_data_generator
 from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers
+from average_submissions import average_submissions
 
 #models
 import vgg16_efficiency
@@ -236,9 +237,11 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
     folder = 'subm2/predictions_' + modelStr    
     if not os.path.isdir(folder):
         os.mkdir(folder)
-
+    
+    all_filenames = []
     for index in range(nfolds):
         filename = folder + 'fold_' + str(index) + 'test_samples_' + str(num_test_samples) + '.csv'
+        all_filenames.append(filename)
 
         if os.path.exists(filename):
             print('file exists, skipping')
@@ -265,6 +268,11 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
         test_ids = np.array(test_ids)
 
         create_submission(model_predictions, test_ids, filename)
+
+    average_filename = folder + 'folds_0-' + str(nfolds) + 'test_samples_' + str(num_test_samples) + '.csv'
+
+    average_submissions(all_filenames, average_filename)
+
 
 def create_submission(predictions, test_id, filename):
     result1 = pd.DataFrame(predictions, columns=['c0', 'c1', 'c2', 'c3',

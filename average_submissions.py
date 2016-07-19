@@ -22,7 +22,7 @@ def main():
 				 "subm/submission_loss__vgg_16_generator_randomSplit_r_224_c_224_folds_4_ep_20_2016-07-07-08-45.csv",
 				 "subm/submission_loss__vgg_16_generator3_randomSplit_r_224_c_224_folds_4_ep_20_2016-07-08-09-19.csv"
 		]
-		average_submissions(filenames, 'averaged_predictions.csv')
+	average_submissions(filenames, 'averaged_predictions.csv')
 
 if __name__ == "__main__":
 	main()
