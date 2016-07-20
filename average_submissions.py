@@ -4,8 +4,9 @@ import pandas
 def average_submissions(filenames_in, filename_out):
 		
 	dfs = []
-
+	print('computing average of submissions...')
 	for filename in filenames_in:
+		print(filename)
 		df = pandas.read_csv(filename)
 		df = df.sort_values(by='img')
 

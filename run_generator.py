@@ -243,6 +243,10 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
         filename = folder + 'fold_' + str(index) + 'test_samples_' + str(num_test_samples) + '.csv'
         all_filenames.append(filename)
 
+        if num_test_samples > 1:
+            non_augmented_filename = folder + 'fold_' + str(index) + 'test_samples_1.csv'
+            all_filenames.append(non_augmented_filename)
+
         if os.path.exists(filename):
             print('file exists, skipping')
             continue
@@ -280,66 +284,6 @@ def create_submission(predictions, test_id, filename):
                                                  'c8', 'c9'])
     result1.loc[:, 'img'] = pd.Series(test_id, index=result1.index)
     result1.to_csv(filename, index=False)
-
-def run_cross_validation(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
-    if driver_split:
-        modelStr += '_driverSplit'
-    else:
-        modelStr += '_randomSplit'
-
-    if 1:
-        cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
-
-    print('Start testing............')
-
-    yfull_test = np.zeros((nfolds, 79726, 10))
-    print('yfull_test shape: %s' % str(yfull_test.shape))
-
-    models = []
-    for index in range(nfolds):
-        model = pretrained_vgg16.read_model(index, modelStr)
-        # model.compile(optimizer='sgd', loss='categorical_crossentropy')
-        models.append(model)
-
-    print('loaded %d models' % len(models))
-
-    splits = 5
-    n = 79726
-    test_ids = []
-    for split in range(splits):
-        print('running split %d' % split)
-        index_range = [int(split*n/splits),int((split+1)*n/splits)]
-        print(index_range)
-
-        split_test_data, split_ids = pretrained_vgg16.read_and_normalize_test_data(img_rows, img_cols, color_type_global, index_range = index_range, transform=False)
-        test_ids += split_ids
-        print('test ids array shape: %s' % str(len(test_ids)))
-
-        print('split test data shape: %s' % str(split_test_data.shape))
-
-        for index in range(nfolds):
-            model = models[index]
-    
-            if num_test_samples == 1:
-                predictions = model.predict(split_test_data, batch_size = test_batch_size, verbose=True)
-            else:
-                predictions = generator_test_predict2(model, split_test_data, batch_size=test_batch_size, num_samples=num_test_samples)
- 
-            print('predictions shape: %s' % str(predictions.shape))
-            yfull_test[index, index_range[0]:index_range[1]] = predictions
-
-    if num_test_samples > 1:
-        modelStr += '_testaugment%d' % num_test_samples
-
-    info_string = 'loss_' + modelStr \
-                  + '_r_' + str(img_rows) \
-                  + '_c_' + str(img_cols) \
-                  + '_folds_' + str(nfolds) \
-                  + '_ep_' + str(nb_epoch)
-    test_ids = np.array(test_ids)
-
-    test_res = pretrained_vgg16.merge_several_folds_mean(yfull_test, nfolds)
-    pretrained_vgg16.create_submission(test_res, test_ids, info_string)
 
 def main():
     global num_test_samples
