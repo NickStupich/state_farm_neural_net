@@ -31,9 +31,9 @@ color_type_global = 3
 img_rows, img_cols = 224, 224
 
 horizontal_flip = False
-rotation_range = 30
-width_shift_range = 0.1
-height_shift_range = 0.1
+rotation_range = 10
+width_shift_range = 0.05
+height_shift_range = 0.05
 shear_range_deg = 10.0
 shear_range = shear_range_deg / (180.0 / np.pi)
 zoom_range = 0.1
@@ -42,7 +42,7 @@ channel_shift_range=10.
 augment_specs = '_'.join(map(str, [rotation_range, width_shift_range, height_shift_range, shear_range_deg, zoom_range, channel_shift_range]))
 reset_weights_each_fold = True
 
-samples_per_epoch = 4800
+samples_per_epoch = -1#4800
 
 #learning_rates = [2e-6, 2e-7, 2e-8]
 learning_rates = [1e-3]
@@ -52,7 +52,7 @@ test_batch_size = batch_size
 random_state = 30
 
 driver_split=False
-num_folds = 20
+num_folds = 6
 num_epochs = 20
 num_test_samples = 5
 patience=2
@@ -227,7 +227,7 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
     else:
         modelStr += '_randomSplit'
 
-    if 0:
+    if 1:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
 
     print('Start testing............')
@@ -276,7 +276,6 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
     average_filename = folder + 'folds_0-' + str(nfolds) + 'test_samples_' + str(num_test_samples) + '.csv'
 
     average_submissions(all_filenames, average_filename)
-
 
 def create_submission(predictions, test_id, filename):
     result1 = pd.DataFrame(predictions, columns=['c0', 'c1', 'c2', 'c3',

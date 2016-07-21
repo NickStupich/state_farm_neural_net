@@ -92,6 +92,7 @@ def test_data_generator(n_folds = 5, img_rows = 224, img_cols = 224, color_type=
 		folder = get_test_folder_name(n_folds, img_rows, img_cols, color_type)
 
 		if not os.path.exists(folder):
+			print(folder)
 			raise Exception("Test data cache file doesn't exist, run create_test_split_data() first")
 
 		result = functools.partial(load_test_data_fold, folder, fold)
@@ -102,7 +103,7 @@ def create_test_split_data(n_folds = 5, img_rows = 224, img_cols = 224, color_ty
     n = 79726
     folder = get_test_folder_name(n_folds, img_rows, img_cols, color_type)
 
-    for fold in [4]:#range(n_folds):
+    for fold in range(n_folds):
         index_range = [int(fold*n/n_folds),int((fold+1)*n/n_folds)]
 
         split_test_data, split_ids = read_and_normalize_test_data(img_rows, img_cols, color_type, index_range = index_range, transform=False)
