@@ -1,7 +1,7 @@
 import pandas
 
 
-def average_submissions(filenames_in, filename_out):
+def average_submissions(filenames_in, filename_out, power = 1.0):
 		
 	dfs = []
 	print('computing average of submissions...')
@@ -14,6 +14,8 @@ def average_submissions(filenames_in, filename_out):
 
 	df_all = pandas.concat(dfs)
 	df_all = df_all.groupby('img').mean()
+
+	df_all = df_all.applymap(lambda x: x ** power)
 
 	df_all.to_csv(filename_out)
 

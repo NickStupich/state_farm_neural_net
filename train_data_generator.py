@@ -112,7 +112,7 @@ def create_test_split_data(n_folds = 5, img_rows = 224, img_cols = 224, color_ty
 
 if __name__ == "__main__":
 
-	if 0:
+	if 1:
 		#create_train_split_data()
 
 		for fold, data_provider in enumerate(driver_split_data_generator()):

@@ -221,14 +221,57 @@ def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, rand
     predictions = np.mean(all_predictions, axis=1)
     return predictions
 
+def create_validation_predictions_file(nfolds=10, modelStr='', img_rows=224, img_cols = 224, batch_size = 8, random_state=20, driver_split=True):
+    if not driver_split:
+        raise Exception("doing cross validation analysis on non-driver split folds!!")
+
+
+    data_iterator = driver_split_data_generator(nfolds, img_rows, img_cols, color_type_global, random_state)
+
+    n = 22424
+    all_predictions = np.zeros((n, 10))
+    all_labels = np.zeros((n, 10))
+    i=0
+
+    for num_fold in range(nfolds):
+        data_provider = next(data_iterator)
+
+
+        (X_train, Y_train, X_valid, Y_valid) = data_provider()
+
+        model = pretrained_vgg16.read_model(num_fold, modelStr)
+
+        if num_test_samples == 1:
+            predictions = model.predict(X_valid, batch_size = test_batch_size, verbose=True)
+        else:
+            predictions = generator_test_predict2(model, X_valid, batch_size=test_batch_size, num_samples=num_test_samples, random_state = num_fold)
+
+        all_predictions[i:i+len(predictions)] = predictions
+        all_labels[i:i+len(predictions)] = Y_valid
+
+        i += len(predictions)
+
+    validation_fn = 'validation_preds/%s_test_augment%d.npy' % (modelStr, num_test_samples)
+
+    validation_data = np.concatenate((all_predictions, all_labels), axis=1)
+    print(validation_data.shape)
+
+    np.save(validation_fn, validation_data)
+
 def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=10):
     if driver_split:
         modelStr += '_driverSplit'
     else:
         modelStr += '_randomSplit'
 
-    if 1:
+    if 0:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
+
+
+    if 0:
+        print("Start outputting validation predictions...")
+        create_validation_predictions_file(nfolds, modelStr, img_rows, img_cols, batch_size, random_state)
+
 
     print('Start testing............')
 
@@ -273,9 +316,10 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
 
         create_submission(model_predictions, test_ids, filename)
 
-    average_filename = folder + 'folds_0-' + str(nfolds) + 'test_samples_' + str(num_test_samples) + '.csv'
+    power_val = 1.0
+    average_filename = folder + 'folds_0-' + str(nfolds) + 'test_samples_' + str(num_test_samples) + 'pow' + str(power_val) + '.csv'
 
-    average_submissions(all_filenames, average_filename)
+    average_submissions(all_filenames, average_filename, power = power_val)
 
 def create_submission(predictions, test_id, filename):
     result1 = pd.DataFrame(predictions, columns=['c0', 'c1', 'c2', 'c3',
