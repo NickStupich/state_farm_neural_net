@@ -315,7 +315,7 @@ for decode_layer in decode_layers:
 def merge_func(args):
     return K.concatenate(args, axis=1)
 
-if add_derivative and True:
+if add_derivative:
     deriv_layer = Lambda(get_deriv, output_shape=(input_shape[0], input_shape[1], input_shape[2]))(decode_proc)
     print(deriv_layer)
     print(decode_proc)
@@ -569,8 +569,6 @@ if 1:   #encode data, train a simple model on top of it
                 callbacks = callbacks,
                 )
 
-
-
 # build a digit generator that can sample from the learned distribution
 decoder_input = Input(shape=(latent_dim,))
 
@@ -582,8 +580,6 @@ for decode_layer in decode_layers:
 generator = Model(decoder_input, decoder_proc)
 #generator.summary()
 generator.compile(optimizer='sgd', loss='mse')
-
-
 
 if 0: #plot some random spots from the latent space
     while 1:

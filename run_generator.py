@@ -52,10 +52,12 @@ test_batch_size = batch_size
 random_state = 30
 
 driver_split=False
-num_folds = 6
+num_folds = 4
 num_epochs = 20
-num_test_samples = 5
+num_test_samples = 10
 patience=2
+
+class_filters = None#[8,9]
 
 #model_name = 'resnet50' 
 #get_model = resnet50.resnet50
@@ -108,6 +110,18 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
         if driver_split:
             (X_train, Y_train, X_valid, Y_valid) = data_provider()
+
+        if class_filters is not None:            
+            print(X_train.shape, Y_train.shape, X_valid.shape, Y_valid.shape)
+            y_train_dense = np.argmax(Y_train, axis=1)
+            y_valid_dense = np.argmax(Y_valid, axis=1)
+            train_include_indices = np.in1d(y_train_dense, class_filters)
+            valid_include_indices = np.in1d(y_valid_dense, class_filters)
+            X_train = X_train[train_include_indices]
+            Y_train = Y_train[train_include_indices]
+            X_valid = X_valid[valid_include_indices]
+            Y_valid = Y_valid[valid_include_indices]
+            print(X_train.shape, Y_train.shape, X_valid.shape, Y_valid.shape)
 
         if model is None:
             print('creating new model')
@@ -267,7 +281,6 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
     if 0:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
 
-
     if 0:
         print("Start outputting validation predictions...")
         create_validation_predictions_file(nfolds, modelStr, img_rows, img_cols, batch_size, random_state)
@@ -329,8 +342,12 @@ def create_submission(predictions, test_id, filename):
     result1.to_csv(filename, index=False)
 
 def main():
-    global num_test_samples
-    modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
+    # modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
+    modelStr = '_vgg_16_generator'
+
+    if class_filters is not None:
+        modelStr += "_classes%s" % str(class_filters).replace('[', '').replace(']', '').replace(' ','')
+
     print('modelstr: %s ' % modelStr)
     # run_cross_validation(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
     run_cross_validation2(num_folds, num_epochs, modelStr, num_test_samples = num_test_samples)
