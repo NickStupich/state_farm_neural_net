@@ -23,6 +23,8 @@ from keras.layers.noise import GaussianNoise
 
 from sklearn import preprocessing
 from sklearn.cross_validation import KFold
+from sklearn.cluster import KMeans
+from sklearn.manifold import TSNE
 
 import run_keras_cv_drivers_v2
 
@@ -43,10 +45,10 @@ def categorical_to_dense(labels):
 
     return result
 
-batch_size = 16
-latent_dim = 1000
+batch_size = 128
+latent_dim = 3
 epsilon_std = 0.01
-nb_epoch = 173
+nb_epoch = 300
 num_classes = 10
 
 # input_shape = (3, 64, 64)
@@ -274,16 +276,11 @@ elif 1:
     decode_layers.append(UpSampling2D((subsample_size, subsample_size)))
     decode_layers.append(Convolution2D(color_type, conv_size, conv_size, activation='sigmoid', border_mode='same'))
 
-
 def remove_deriv(args):
     return args[:3]
 
-Remove_deriv_layer = Lambda(remove_deriv, output_shape=input_shape)
-
-
 def get_deriv(args):
     return args
-
    
 c_type = 2*color_type if add_derivative else color_type
 x_input = Input(batch_shape=(batch_size, c_type, img_rows, img_cols))
@@ -292,6 +289,7 @@ x = x_input
 print(x)
 
 if add_derivative:
+    Remove_deriv_layer = Lambda(remove_deriv, output_shape=input_shape)
     x = Remove_deriv_layer(x)
 
 for encode_layer in encode_layers:
@@ -332,7 +330,7 @@ def vae_loss(x, x_decoded_mean):
     return xent_loss + kl_loss
     
 vae = Model(x_input, decode_out)
-vae.summary(line_length = 150)
+vae.summary()
 vae.compile(optimizer='rmsprop', loss=vae_loss)
 
 if 0:
@@ -398,16 +396,55 @@ if start_epoch < nb_epoch:
             nb_epoch=epochs_remaining,
             batch_size=batch_size,
             verbose=True,
-            callbacks = callbacks,
-            epoch_offset = start_epoch
+            callbacks = callbacks
             )
-
     
 encoder = Model(x_input, z_mean)
 encoder.compile(optimizer='sgd', loss='mse')
 
 if 1:   # build a model to project inputs on the latent space
-    if 1:   #plot a random subset of data
+    if 1:   #plot with driver ids as label
+        # display a 2D plot of the digit classes in the latent space
+        encoded_data = encoder.predict(x_train, batch_size=batch_size)
+        labels = np.array(list(map(lambda id_str: int(id_str.strip('p')), driver_id)))
+        class_labels = categorical_to_dense(y_train)
+        num_clusters = 26
+        kmeans = KMeans(n_clusters = num_clusters)
+        pred_labels = kmeans.fit_predict(encoded_data)
+
+        if 1:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            n = 5000
+            skip = len(encoded_data) / n
+            ax.scatter(encoded_data[::skip, 0], encoded_data[::skip, 1], zs=encoded_data[::skip, 2], c=labels[::skip])
+            #ax.scatter(encoded_data[::skip, 0], encoded_data[::skip, 1], zs=encoded_data[::skip, 2], c=pred_labels[::skip])
+        
+            plt.title('Random drivers - colors are driver ids')
+            plt.show()
+
+        for label in range(num_clusters):
+            #build a mini-autoencoder here
+            indices = np.where(pred_labels == label)
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            
+            if 1:
+                ax.scatter(encoded_data[indices,0], encoded_data[indices, 1], zs=encoded_data[indices, 2], c=class_labels[indices])
+            elif 1:
+                label_x_train = np.reshape(x_train[indices], (len(indices[0]), -1))
+                print(label_x_train.shape, x_train.shape)
+                tsne = TSNE(n_components=3)
+                tsne_data = tsne.fit_transform(label_x_train)
+                ax.scatter(tsne_data[indices,0], tsne_data[indices, 1], zs=tsne_data[indices, 2], c=class_labels[indices])
+    
+            plt.legend()
+            plt.title('Clustered driver %d - colors are class labels' % label)
+            plt.show()
+
+
+    if 0:   #plot a random subset of data
 
         # display a 2D plot of the digit classes in the latent space
         encoded_data = encoder.predict(x_train, batch_size=batch_size)
@@ -424,10 +461,10 @@ if 1:   # build a model to project inputs on the latent space
             skip = len(encoded_data) / n
             ax.scatter(encoded_data[::skip, 0], encoded_data[::skip, 1], zs=encoded_data[::skip, 2], c=labels[::skip])
         
-        plt.title('Random drivers')
+        plt.title('Random drivers - colors are classes')
         plt.show()
 
-    if 1: #plot for a single driver
+    if 0: #plot for a single driver
         driver_index = 0
         X_train, Y_train, train_index = run_keras_cv_drivers_v2.copy_selected_drivers(x_train, y_train, driver_id, 
                 [unique_drivers[driver_index]])
@@ -441,8 +478,7 @@ if 1:   # build a model to project inputs on the latent space
         plt.title('Driver %s' % unique_drivers[driver_index])
         plt.show()
 
-
-    if 1: #plot by drivers for a single class
+    if 0: #plot by drivers for a single class
         label_index = 0
         all_labels = categorical_to_dense(y_train)
 
@@ -486,14 +522,14 @@ if 0: #add a softmax layer on top of encoder
             callbacks = callbacks,
             )
 
-if 0:   #add a softmax, validatation split by drivers
+if 1:   #add a softmax, validatation split by drivers
     x = z_mean
     x = Dropout(0.5)(x)
     
     x = Dense(num_classes, activation='softmax')(x)
 	
     # optimizer = Adam(lr=1e-3)
-    optimizer = SGD(lr=1e-4, momentum = 0.9, nesterov=True)
+    optimizer = SGD(lr=1e-3, momentum = 0.9, nesterov=True)
     classifier = Model(x_input, x)
     classifier.summary()
     classifier.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
@@ -510,7 +546,7 @@ if 0:   #add a softmax, validatation split by drivers
 
 
         callbacks = []
-        callbacks.append(EarlyStopping(monitor='val_loss', patience=5, verbose=0, mode='auto'))
+        callbacks.append(EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='auto'))
 
         classifier.fit(X_train, Y_train,
                 shuffle=True,
@@ -521,7 +557,7 @@ if 0:   #add a softmax, validatation split by drivers
                 callbacks = callbacks,
                 )
 
-if 1:   #encode data, train a simple model on top of it
+if 0:   #encode data, train a simple model on top of it
     
     encoded_data = encoder.predict(x_train)
 
@@ -537,9 +573,9 @@ if 1:   #encode data, train a simple model on top of it
         encode_input = Input(encoded_data.shape[1:])
 
         x = encode_input
-        x = Dropout(0.5)(x)
+        #x = Dropout(0.5)(x)
         #x = GaussianNoise(epsilon_std)(x)
-        #x = Dense(100, activation='relu')(x)
+        x = Dense(100, activation='relu')(x)
         #x = Dropout(0.5)(x)
 
         #x = Dense(1000, activation='relu')(x)
@@ -550,9 +586,9 @@ if 1:   #encode data, train a simple model on top of it
 
         x = Dense(num_classes, activation='softmax')(x)
 
-        # optimizer = Adam(lr=1e-3)
-        # optimizer = 'rmsprop'
-        optimizer = SGD(lr=2e-2)
+        #optimizer = Adam(lr=1e-3)
+        #optimizer = 'rmsprop'
+        optimizer = SGD(lr=1e-1)
         classifier = Model(encode_input, x)
         classifier.summary()
         classifier.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
@@ -562,7 +598,7 @@ if 1:   #encode data, train a simple model on top of it
         
         classifier.fit(X_train, Y_train,
                 shuffle=True,
-                nb_epoch = 200,
+                nb_epoch = 100,
                 batch_size = batch_size,
                 validation_data = (X_valid, Y_valid),
                 verbose=True,

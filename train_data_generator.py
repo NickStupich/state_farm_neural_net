@@ -4,7 +4,7 @@ import functools
 
 from sklearn.cross_validation import KFold
 from pretrained_vgg16 import read_and_normalize_and_shuffle_train_data, copy_selected_drivers, read_and_normalize_test_data
-
+import run_keras_cv_drivers_v2
 
 cache_path_base = '/media/nick/TempDisk1/state_farm/cache_data/'#train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
 #cache_path_base = 'cache_data/'
@@ -12,6 +12,8 @@ cache_path_base = '/media/nick/TempDisk1/state_farm/cache_data/'#train_folds_cac
 train_cache_path = cache_path_base + 'train_folds_cache_%dx%dx%d_fold%dof%d_seed%d'
 
 test_cache_path = cache_path_base + 'test_folds_cache_%dx%dx%d_nfolds%d'
+
+unlabelled_cache_path = 'cache_data/unlabelled_cache_%dx%dx%d'
 
 
 def get_fold_folder_name(fold, n_folds, img_rows, img_cols, color_type, random_state):
@@ -74,6 +76,7 @@ def driver_split_data_generator(n_folds = 4, img_rows = 224, img_cols = 224, col
 
 		yield result
 
+
 def load_test_data_fold(folder, fold):
 	data = np.load(folder + '/data%d.npy' % fold)
 	ids = np.load(folder + "/ids%d.npy" % fold)
@@ -110,9 +113,43 @@ def create_test_split_data(n_folds = 5, img_rows = 224, img_cols = 224, color_ty
 
         save_test_data_fold(folder, fold, split_test_data, split_ids)
 
+
+def load_all_unlabeled_data(folder):
+	result = np.load(folder + '/data.npy')
+	return result
+
+def save_all_unlabeled_data(folder, data):
+	np.save(folder + '/data.npy', data)
+
+def get_unlabelled_folder_name(img_rows, img_cols, color_type):
+	return unlabelled_cache_path % (img_rows, img_cols, color_type)
+
+def get_unlabelled_data(img_rows = 128, img_cols = 128, color_type=3):
+	folder = get_unlabelled_folder_name(img_rows, img_cols, color_type)
+
+	data = load_all_unlabeled_data(folder)
+
+	return data
+
+def create_unlabelled_data(img_rows = 128, img_cols = 128, color_type=3):
+
+	n = 79726 + 22424
+
+	result = np.zeros((n, color_type, img_rows, img_cols), dtype='float32')
+
+	result[:79726], _ = run_keras_cv_drivers_v2.read_and_normalize_test_data(img_rows, img_cols, color_type)
+	print('got test data')
+
+	result[79726:], train_target, train_id, driver_id, unique_drivers = run_keras_cv_drivers_v2.read_and_normalize_train_data(img_rows, img_cols, color_type)
+
+	print('got train data')
+
+	folder = get_unlabelled_folder_name(img_rows, img_cols, color_type)
+	save_all_unlabeled_data(folder, result)
+
 if __name__ == "__main__":
 
-	if 1:
+	if 0:
 		#create_train_split_data()
 
 		for fold, data_provider in enumerate(driver_split_data_generator()):
@@ -128,7 +165,7 @@ if __name__ == "__main__":
 			X_train = None
 			X_valid = None
 
-	if 1:
+	if 0:
 		#create_test_split_data()
 
 		for fold, data_provider in enumerate(test_data_generator()):
@@ -136,3 +173,9 @@ if __name__ == "__main__":
 			print(fold)
 			print(ids.shape)
 			print(data.shape)
+
+	if 1:
+		create_unlabelled_data(128, 128, 3)
+
+		data = get_unlabelled_data(128, 128, 3)
+		print(data.shape)

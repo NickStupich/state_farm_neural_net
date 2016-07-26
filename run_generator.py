@@ -54,7 +54,7 @@ random_state = 30
 driver_split=False
 num_folds = 4
 num_epochs = 20
-num_test_samples = 10
+num_test_samples = 3
 patience=2
 
 class_filters = None#[8,9]
