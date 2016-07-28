@@ -8,7 +8,7 @@ from keras.layers import Flatten, Dropout, Activation, Reshape, Merge
 from keras.utils import np_utils
 from keras.optimizers import *
 
-def build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_type):
+def build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_type, latent_dim, batch_size, epsilon_std):
 
 	x_input = Input(shape=(color_type, img_rows, img_cols))
 	x = x_input
@@ -28,7 +28,7 @@ def build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_typ
 	    xent_loss = objectives.binary_crossentropy(x, x_decoded_mean)
 	    kl_loss = - 0.5 * K.mean(1 + z_log_std - K.square(z_mean) - K.exp(z_log_std))#, axis=-1)
 	    return xent_loss + kl_loss
-	    
+
 
 	z = Lambda(sampling, output_shape=(latent_dim,))([z_mean, z_log_std])
 
@@ -38,7 +38,11 @@ def build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_typ
 
 	vae = Model(x_input, decode_x)
 	vae.summary()
-	vae.compile(optimizer='rmsprop', loss=vae_loss)
+
+	optimizer = RMSprop(lr=1e-4)
+	# optimizer = 'rmsprop'
+
+	vae.compile(optimizer=optimizer, loss=vae_loss)
 
 
 

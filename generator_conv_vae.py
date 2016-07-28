@@ -23,28 +23,36 @@ import conv_vae_models
 
 import train_data_generator
 import vae_helpers
+import use_vae_experiments
 
-batch_size = 450
+batch_size = 64
 latent_dim = 3
 epsilon_std = 0.01
-nb_epoch = 48
+nb_epoch = 1
 num_classes = 10
 
 input_shape = (3, 128, 128)
 color_type, img_rows, img_cols = input_shape
 
+# encode_layers, decode_layers, model_name = conv_vae_models.get_conv_vae_model(layers = [32, 64, 128, 256],
+# 			conv_size=5, subsample=2, model_name='test1', img_rows = img_rows, img_cols = img_cols, color_type=color_type)
+
+encode_layers, decode_layers, model_name = conv_vae_models.get_vgg16_conv_model(img_rows = img_rows, img_cols = img_cols, color_type=color_type)
+
+vae, encoder, decoder = vae_helpers.build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_type, latent_dim, batch_size, epsilon_std)
+
 if 1:
-	encode_layers, decode_layers, model_name = conv_vae_models.get_conv_vae_model(layers = [32, 64, 128, 256], 
-			conv_size=5, subsample=2, model_name='test1', img_rows = img_rows, img_cols = img_cols, color_type=color_type)
+	start = datetime.datetime.now()
+	all_data = train_data_generator.get_unlabelled_data(img_rows, img_cols, color_type)
+	end = datetime.datetime.now()
+	print('data loading time: %s' % (end - start))
+	print('array size: %s MB' % str(all_data.nbytes / (2**20)))
+else:
+	print("***WARNING: FAKE DATA***")
+	all_data = np.zeros((16*450, color_type, img_rows, img_cols))
 
-vae, encoder, decoder = vae_helpers.build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_type)
-
-start = datetime.datetime.now()
-all_data = train_data_generator.get_unlabelled_data(img_rows, img_cols, color_type)
-end = datetime.datetime.now()
-print('data loading time: %s' % (end - start))
-print('array size: %s MB' % str(all_data.nbytes / (2**20)))
-
+#all_data = all_data[:79650] #to make batch sizes work out
+#all_data = all_data[:22424 - (22424 % batch_size)]	#train only
 
 model_folder = 'vae_gen_%s_latent%d' % (model_name, latent_dim)
 model_path = '%s/epoch_{epoch:03d}.h5' % (model_folder)
@@ -65,7 +73,7 @@ while start_epoch >= 0:
 
     start_epoch -= 1
 
-if start_epoch < nb_epoch:    
+if start_epoch < nb_epoch:
     print('nb_epoch: %d' % nb_epoch)
     print('start epoch: %d' % start_epoch)
     epochs_remaining = nb_epoch - start_epoch
@@ -81,7 +89,13 @@ if start_epoch < nb_epoch:
             verbose=True,
             callbacks = callbacks
             )
-    
 
-use_vae_experiments.cluster_and_classify(encoder, all_data)
-# use_vae_experiments.plot_top_clusters(encoder, all_data)
+if 0:
+	n = 79726 - 79726 % batch_size
+	print('test cost: %s' % str(vae.evaluate(all_data[:n], all_data[:n], batch_size=batch_size)))
+
+	n = (len(all_data) - 79726) - (len(all_data) - 79726) % batch_size
+	print('train cost: %s' % str(vae.evaluate(all_data[79726:79726+n], all_data[79726:79726+n], batch_size=batch_size)))
+
+# use_vae_experiments.cluster_and_classify(encoder, all_data, img_rows, img_cols, color_type)
+use_vae_experiments.plot_top_clusters(encoder, all_data, img_rows, img_cols, color_type)

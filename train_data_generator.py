@@ -165,7 +165,7 @@ if __name__ == "__main__":
 			X_train = None
 			X_valid = None
 
-	if 0:
+	if 1:
 		#create_test_split_data()
 
 		for fold, data_provider in enumerate(test_data_generator()):

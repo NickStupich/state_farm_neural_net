@@ -45,7 +45,7 @@ reset_weights_each_fold = True
 samples_per_epoch = -1#4800
 
 #learning_rates = [2e-6, 2e-7, 2e-8]
-learning_rates = [1e-3]
+learning_rates = [1e-4]
 
 batch_size = 48
 test_batch_size = batch_size
@@ -54,7 +54,7 @@ random_state = 30
 driver_split=False
 num_folds = 4
 num_epochs = 20
-num_test_samples = 3
+num_test_samples = 1 
 patience=2
 
 class_filters = None#[8,9]
@@ -278,7 +278,7 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
     else:
         modelStr += '_randomSplit'
 
-    if 0:
+    if 1:
         cross_validation_train(nfolds, nb_epoch, modelStr, img_rows, img_cols, batch_size, random_state, driver_split = driver_split)
 
     if 0:
@@ -343,7 +343,7 @@ def create_submission(predictions, test_id, filename):
 
 def main():
     # modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
-    modelStr = '_vgg_16_generator'
+    modelStr = '_vgg_16_generator_sgd1e-4'
 
     if class_filters is not None:
         modelStr += "_classes%s" % str(class_filters).replace('[', '').replace(']', '').replace(' ','')
