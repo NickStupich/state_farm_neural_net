@@ -149,11 +149,11 @@ def create_unlabelled_data(img_rows = 128, img_cols = 128, color_type=3):
 
 if __name__ == "__main__":
 
-	if 0:
-		#create_train_split_data()
+	if 1:
+		create_train_split_data(n_folds=2,img_rows=128, img_cols=128)
 
-		for fold, data_provider in enumerate(driver_split_data_generator()):
-			
+		for fold, data_provider in enumerate(driver_split_data_generator(n_folds=2,img_rows=128, img_cols=128)):
+
 			(X_train, Y_train, X_valid, Y_valid) = data_provider()
 			print('fold %d' % (fold))
 			print(X_train.shape)
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 			X_train = None
 			X_valid = None
 
-	if 1:
+	if 0:
 		#create_test_split_data()
 
 		for fold, data_provider in enumerate(test_data_generator()):

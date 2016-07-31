@@ -64,7 +64,7 @@ def get_im_cv2_mod(path, img_rows, img_cols, color_type=1):
     rotate = random.uniform(-10, 10)
     rotate_rad = np.abs(rotate * np.pi / 180.)  #only for cropping
     M = cv2.getRotationMatrix2D((img.shape[1]/2, img.shape[0]/2), rotate, 1)
-    
+
     warped = cv2.warpAffine(img, M, (img.shape[1], img.shape[0]))
     crop_size = (img.shape[0] * (1-np.sin(rotate_rad)), img.shape[1] * (1-np.sin(rotate_rad)))#/2 since it rotates from middle
     # print('rotate: %f   rad: %f' % (rotate, rotate_rad))
@@ -124,8 +124,8 @@ def load_train(img_rows, img_cols, color_type=1):
         files = glob.glob(path)
         for fl in files:
             flbase = os.path.basename(fl)
-            img = get_im_cv2(fl, img_rows, img_cols, color_type)
-            #img = get_im_cv2_mod(fl, img_rows, img_cols, color_type)
+            # img = get_im_cv2(fl, img_rows, img_cols, color_type)
+            img = get_im_cv2_mod(fl, img_rows, img_cols, color_type)
             X_train.append(img)
             X_train_id.append(flbase)
             y_train.append(j)
@@ -149,8 +149,8 @@ def load_test(img_rows, img_cols, color_type=1):
     thr = math.floor(len(files)/10)
     for fl in files:
         flbase = os.path.basename(fl)
-        # img = get_im_cv2(fl, img_rows, img_cols, color_type)
-        img = get_im_cv2_mod(fl, img_rows, img_cols, color_type)
+        img = get_im_cv2(fl, img_rows, img_cols, color_type)
+        # img = get_im_cv2_mod(fl, img_rows, img_cols, color_type)
         X_test.append(img)
         X_test_id.append(flbase)
         total += 1
@@ -336,7 +336,7 @@ def copy_selected_drivers(train_data, train_target, driver_id, driver_list):
 #     # # model.add(Dropout(0.5))
 
 #     # model.add(Flatten())
-    
+
 #     # model.add(Dense(50))
 #     # model.add(Dropout(0.5))
 
@@ -416,8 +416,8 @@ def run_cross_validation(nfolds=10):
 
     train_data, train_target, train_id, driver_id, unique_drivers = read_and_normalize_train_data(img_rows, img_cols, color_type_global)
     test_data, test_id = read_and_normalize_test_data(img_rows, img_cols, color_type_global)
-    
-    #model = create_model_v1(img_rows, img_cols, color_type_global)    
+
+    #model = create_model_v1(img_rows, img_cols, color_type_global)
     model = create_model_v2(img_rows, img_cols, color_type_global)
 
 
@@ -427,8 +427,8 @@ def run_cross_validation(nfolds=10):
     num_fold = 0
     sum_score = 0
     for train_drivers, test_drivers in kf:
-    
-    
+
+
 
         unique_list_train = [unique_drivers[i] for i in train_drivers]
         X_train, Y_train, train_index = copy_selected_drivers(train_data, train_target, driver_id, unique_list_train)

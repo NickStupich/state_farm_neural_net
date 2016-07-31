@@ -2,6 +2,8 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2
 from keras.layers import Input, Dense, Lambda
 from keras.layers import Flatten, Dropout, Activation, Reshape, Merge
 
+import h5py
+
 
 def get_conv_vae_model(layers = [32, 64, 128, 256], conv_size=5, subsample=2, model_name='',
     img_rows = 128, img_cols = 128, color_type=3):
@@ -35,6 +37,7 @@ def get_conv_vae_model(layers = [32, 64, 128, 256], conv_size=5, subsample=2, mo
 
     return encode_layers, decode_layers, model_name
 
+
 def get_vgg16_conv_model(img_rows = 128, img_cols = 128, color_type=3):
         encode_layers = []
         decode_layers = []
@@ -64,7 +67,6 @@ def get_vgg16_conv_model(img_rows = 128, img_cols = 128, color_type=3):
         encode_layers.append(Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal'))
         #took out the max pooling layer here
         encode_layers.append(Flatten())
-
 
         smallest_rows = int(img_rows / (2)**4)
         smallest_cols = int(img_cols / (2)**4)
@@ -99,6 +101,7 @@ def get_vgg16_conv_model(img_rows = 128, img_cols = 128, color_type=3):
         decode_layers.append(UpSampling2D((2, 2)))
         decode_layers.append(Convolution2D(64, 3, 3, activation='relu', border_mode='same', input_shape=(color_type,img_rows, img_cols), init='he_normal'))
         decode_layers.append(Convolution2D(color_type, 3, 3, activation='sigmoid', border_mode='same', init='he_normal'))
+
 
         return encode_layers, decode_layers, model_name
 

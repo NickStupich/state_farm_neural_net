@@ -28,8 +28,10 @@ import use_vae_experiments
 batch_size = 64
 latent_dim = 3
 epsilon_std = 0.01
-nb_epoch = 1
+nb_epoch = 12
 num_classes = 10
+
+use_pretrained_weights = True
 
 input_shape = (3, 128, 128)
 color_type, img_rows, img_cols = input_shape
@@ -41,7 +43,12 @@ encode_layers, decode_layers, model_name = conv_vae_models.get_vgg16_conv_model(
 
 vae, encoder, decoder = vae_helpers.build_vae_models(encode_layers, decode_layers, img_rows, img_cols, color_type, latent_dim, batch_size, epsilon_std)
 
-if 1:
+if use_pretrained_weights:
+	model_name += "_pretrained"
+	vae_helpers.set_vgg16_weights(vae, encoder, decoder)
+	print('done setting weights to vgg16 starting point')
+
+if 0:
 	start = datetime.datetime.now()
 	all_data = train_data_generator.get_unlabelled_data(img_rows, img_cols, color_type)
 	end = datetime.datetime.now()
@@ -52,9 +59,12 @@ else:
 	all_data = np.zeros((16*450, color_type, img_rows, img_cols))
 
 #all_data = all_data[:79650] #to make batch sizes work out
-#all_data = all_data[:22424 - (22424 % batch_size)]	#train only
+#all_data = all_data[:22424]	#train only
+# all_data = all_data[:5000]
 
-model_folder = 'vae_gen_%s_latent%d' % (model_name, latent_dim)
+all_data = all_data[:len(all_data) - (len(all_data) % batch_size)]
+
+model_folder = 'vae_gen_%s_latent%d_nonrotate' % (model_name, latent_dim)
 model_path = '%s/epoch_{epoch:03d}.h5' % (model_folder)
 print(model_folder)
 print(model_path)
@@ -98,4 +108,5 @@ if 0:
 	print('train cost: %s' % str(vae.evaluate(all_data[79726:79726+n], all_data[79726:79726+n], batch_size=batch_size)))
 
 # use_vae_experiments.cluster_and_classify(encoder, all_data, img_rows, img_cols, color_type)
-use_vae_experiments.plot_top_clusters(encoder, all_data, img_rows, img_cols, color_type)
+# use_vae_experiments.plot_top_clusters(encoder, all_data, img_rows, img_cols, color_type)
+use_vae_experiments.cluster_and_classify2(encoder, encode_layers, img_rows, img_cols, color_type)
