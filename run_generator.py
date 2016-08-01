@@ -10,7 +10,7 @@ import cv2
 
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
-from keras.callbacks import EarlyStopping, ModelCheckpoint	
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.optimizers import SGD, Adam
 from keras.utils import np_utils
 from keras.models import model_from_json
@@ -31,13 +31,13 @@ color_type_global = 3
 img_rows, img_cols = 224, 224
 
 horizontal_flip = False
-rotation_range = 10
-width_shift_range = 0.05
-height_shift_range = 0.05
-shear_range_deg = 10.0
+rotation_range = 0
+width_shift_range = 0.0
+height_shift_range = 0.
+shear_range_deg = 0
 shear_range = shear_range_deg / (180.0 / np.pi)
-zoom_range = 0.1
-channel_shift_range=10.
+zoom_range = 0.0
+channel_shift_range=0.
 
 augment_specs = '_'.join(map(str, [rotation_range, width_shift_range, height_shift_range, shear_range_deg, zoom_range, channel_shift_range]))
 reset_weights_each_fold = True
@@ -45,21 +45,21 @@ reset_weights_each_fold = True
 samples_per_epoch = -1#4800
 
 #learning_rates = [2e-6, 2e-7, 2e-8]
-learning_rates = [1e-4]
+learning_rates = [1e-3]
 
 batch_size = 48
 test_batch_size = batch_size
 random_state = 30
 
 driver_split=False
-num_folds = 4
-num_epochs = 20
-num_test_samples = 1 
-patience=2
+num_folds = 5
+num_epochs = 25
+num_test_samples = 5
+patience=5
 
 class_filters = None#[8,9]
 
-#model_name = 'resnet50' 
+#model_name = 'resnet50'
 #get_model = resnet50.resnet50
 
 #get_model = resnet50.resnet_small
@@ -111,7 +111,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
         if driver_split:
             (X_train, Y_train, X_valid, Y_valid) = data_provider()
 
-        if class_filters is not None:            
+        if class_filters is not None:
             print(X_train.shape, Y_train.shape, X_valid.shape, Y_valid.shape)
             y_train_dense = np.argmax(Y_train, axis=1)
             y_valid_dense = np.argmax(Y_valid, axis=1)
@@ -144,11 +144,11 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
                         height_shift_range=height_shift_range,
                         shear_range = shear_range,
                         zoom_range = zoom_range,
-			channel_shift_range=channel_shift_range,	
+			channel_shift_range=channel_shift_range,
 		)
 
         if driver_split:
-            perm = permutation(len(X_train))    
+            perm = permutation(len(X_train))
             train_flow = train_datagen.flow(X_train, Y_train, batch_size=batch_size)
 
             model.fit_generator(train_flow,
@@ -163,7 +163,7 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
             for learning_rate in learning_rates[1:]:
                 print('dropping learning rate to %s' % learning_rate)
-                
+
                 optimizer = get_optimizer(learning_rates[0])
                 model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -176,8 +176,8 @@ def cross_validation_train(nfolds=10, nb_epoch=10, modelStr='', img_rows = 224, 
 
                 model.load_weights(weights_path)
 
-        else:            
-            perm = permutation(len(train_data))    
+        else:
+            perm = permutation(len(train_data))
 
             n_train = int(len(train_data)*0.9)
             n_valid = len(train_data) - n_train
@@ -221,7 +221,7 @@ def generator_test_predict2(model, test_data, batch_size=32, num_samples=4, rand
                     height_shift_range=height_shift_range * test_augment_range,
                     shear_range = shear_range * test_augment_range,
                     zoom_range = zoom_range * test_augment_range,
-        channel_shift_range=channel_shift_range * test_augment_range,   
+        channel_shift_range=channel_shift_range * test_augment_range,
     )
 
     test_flow = test_datagen.flow(test_data, batch_size=batch_size, shuffle=False, seed=random_state)
@@ -290,10 +290,10 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
 
     models = []
 
-    folder = 'subm2/predictions_' + modelStr    
+    folder = 'subm2/predictions_' + modelStr
     if not os.path.isdir(folder):
         os.mkdir(folder)
-    
+
     all_filenames = []
     for index in range(nfolds):
         filename = folder + 'fold_' + str(index) + 'test_samples_' + str(num_test_samples) + '.csv'
@@ -321,7 +321,7 @@ def run_cross_validation2(nfolds=10, nb_epoch=10, modelStr='', num_test_samples=
                 predictions = model.predict(split_test_data, batch_size = test_batch_size, verbose=True)
             else:
                 predictions = generator_test_predict2(model, split_test_data, batch_size=test_batch_size, num_samples=num_test_samples, random_state = index*100+test_fold)
- 
+
             model_predictions[data_index:data_index + len(predictions)] = predictions
             data_index += len(predictions)
 
@@ -342,8 +342,8 @@ def create_submission(predictions, test_id, filename):
     result1.to_csv(filename, index=False)
 
 def main():
-    # modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
-    modelStr = '_vgg_16_generator_sgd1e-4'
+    modelStr = 'run_gen_%s_%s' % (model_name, augment_specs)
+    #modelStr = '_vgg_16_generator_sgd1e-4'
 
     if class_filters is not None:
         modelStr += "_classes%s" % str(class_filters).replace('[', '').replace(']', '').replace(' ','')
