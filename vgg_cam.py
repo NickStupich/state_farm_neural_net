@@ -6,7 +6,7 @@ import os
 import keras.backend as K
 from keras.models import Model
 from keras.layers import Input
-from keras.layers.core import Flatten, Dense
+from keras.layers.core import Flatten, Dense, Dropout
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D
 from keras.preprocessing import image
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -26,9 +26,11 @@ def VGG_CAM(nb_classes = 10, num_input_channels = 1024, input_img_shape = (3, 22
 
     x = vgg16_base.layers[-2].output
 
-    x = Convolution2D(num_input_channels, 3, 3, activation='relu', border_mode="same")(x)
+    x = Convolution2D(num_input_channels, 3, 3, activation='relu', border_mode="same", name='final_conv')(x)
     x = AveragePooling2D(flatten_dims)(x)
     x = Flatten()(x)
+
+    x = Dropout(0.5)(x)
 
     x = Dense(nb_classes, activation='softmax')(x)
 
@@ -45,11 +47,13 @@ def get_classmap(model, X, nb_classes, batch_size = 1):
         height = X.shape[2]
         width = X.shape[3]
 
-        upscale_ratio = int(width / model.layers[-4].output_shape[-1])
+        final_conv_layer = model.get_layer('final_conv')
+
+        upscale_ratio = int(width / final_conv_layer.output_shape[-1])
 
         inc = model.layers[0].input
-        conv6 = model.layers[-4].output
-        num_input_channels = model.layers[-4].get_weights()[0].shape[0]
+        conv6 = final_conv_layer.output
+        num_input_channels = final_conv_layer.get_weights()[0].shape[0]
 
         conv6_resized = absconv.bilinear_upsampling(conv6, upscale_ratio,
                                                     batch_size=batch_size,
@@ -102,12 +106,6 @@ def plot_classmap(model, img):
         plt.title(str(label))
         plt.show()
 
-def main():
-    model = VGG_CAM(10)
-    model.compile(loss="categorical_crossentropy", optimizer="sgd")
-
-    plot_classmap(model, 'elephant.jpg')
-
 def cifar_test():
 
     from keras.datasets import cifar10
@@ -149,7 +147,7 @@ def cifar_test():
 
 def state_farm_test():
 
-    nb_epoch = 1
+    nb_epoch = 7
     batch_size = 48
 
     nb_classes = 10
@@ -186,10 +184,10 @@ def state_farm_test():
                   shuffle=True)
 
     plot_folder = 'train/c3/'
+    # plot_folder = 'test/'
     for fn in os.listdir(plot_folder):
         plot_classmap(model, plot_folder + fn)
 
 if __name__ == "__main__":
-    # main()
     # cifar_test()
     state_farm_test()
